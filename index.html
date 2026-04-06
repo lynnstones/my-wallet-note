@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#ffffff" />
+    <title>本月支出</title>
+    <link rel="manifest" href="manifest.json?v=4" />
+    <link rel="icon" type="image/png" href="./wallet-512.png?v=4" />
+    <link rel="apple-touch-icon" href="./wallet-512.png?v=4" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              background: "#f5f5f7",
+              card: "#ffffff",
+              accent: "#007aff",
+              accentSoft: "#e5f0ff",
+            },
+            boxShadow: {
+              soft: "0 18px 45px rgba(0, 0, 0, 0.10)",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
+          "Helvetica Neue", Helvetica, Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+      }
+
+      .wallet-logo {
+        -webkit-mask: url("./wallet.svg?v=4") no-repeat center / contain;
+        mask: url("./wallet.svg?v=4") no-repeat center / contain;
+        background-color: currentColor;
+      }
+    </style>
+  </head>
+  <body class="min-h-screen bg-background text-slate-900">
+    <div class="mx-auto flex min-h-screen max-w-xl flex-col px-4 pb-28 pt-10 sm:px-6">
+      <header class="mb-8 flex items-center justify-between">
+        <div class="h-2 w-16 rounded-full bg-slate-300/70"></div>
+        <div class="flex items-center gap-2 text-xs text-slate-500">
+          <span>本月</span>
+          <span class="inline-flex items-center rounded-full bg-slate-200/80 px-2 py-0.5">
+            预算 · ¥ 8,000
+          </span>
+        </div>
+      </header>
+
+      <div
+        id="installPrompt"
+        class="mb-4 hidden items-center justify-between gap-3 rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-soft ring-1 ring-black/5 backdrop-blur-xl"
+      >
+        <p id="installHintText">可安装到桌面，获得更沉浸体验。</p>
+        <button
+          id="installAppBtn"
+          type="button"
+          class="shrink-0 rounded-full bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          安装到桌面
+        </button>
+      </div>
+
+      <main class="flex flex-1 flex-col gap-6">
+        <section>
+          <div class="flex items-center gap-2">
+            <span class="wallet-logo h-8 w-8 text-slate-900" aria-hidden="true"></span>
+            <h1 class="text-3xl font-semibold tracking-tight text-slate-900 sm:text-4xl">本月支出</h1>
+          </div>
+          <p class="mt-2 text-sm text-slate-500">清晰地看到你的每一笔花费。</p>
+
+          <div class="mt-6 rounded-3xl bg-white/75 p-5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+            <div class="flex items-end justify-between">
+              <div>
+                <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">本月已支出</p>
+                <p id="monthlyTotal" class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">¥ 4,268</p>
+              </div>
+              <div class="rounded-2xl bg-accentSoft px-3 py-2 text-right">
+                <p class="text-[11px] text-slate-500">较上月</p>
+                <p class="text-sm font-medium text-emerald-600">- 8.3%</p>
+              </div>
+            </div>
+            <div class="mt-4 h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+            <div class="mt-4 flex items-center justify-between text-xs text-slate-500">
+              <span>剩余额度</span>
+              <span id="remainingBudget" class="font-medium text-slate-700">¥ 3,732</span>
+            </div>
+          </div>
+        </section>
+
+        <section aria-label="最近消费">
+          <div class="mb-3 flex items-center justify-between">
+            <h2 class="text-sm font-semibold tracking-tight text-slate-900">最近消费</h2>
+            <div class="flex items-center gap-2">
+              <button
+                id="clearTodayBtn"
+                class="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-300"
+                type="button"
+              >
+                清空今日数据
+              </button>
+              <button
+                class="text-xs font-medium text-accent hover:text-accent/80 focus:outline-none focus-visible:rounded-full focus-visible:ring-2 focus-visible:ring-accent/40"
+                type="button"
+              >
+                查看全部
+              </button>
+            </div>
+          </div>
+
+          <div id="expenseList" class="divide-y divide-slate-100 overflow-hidden rounded-3xl bg-card shadow-soft ring-1 ring-black/5">
+            <article class="flex items-center px-4 py-3.5 sm:px-5">
+              <div class="mr-3 flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-medium text-white">
+                咖
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <p class="text-[15px] font-medium text-slate-900">咖啡/早餐</p>
+                  <p class="text-sm font-medium text-slate-900">- ¥ 38</p>
+                </div>
+                <div class="mt-0.5 flex items-center justify-between text-xs text-slate-400">
+                  <span>今天 · 9:24</span>
+                  <span>饮食</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="flex items-center px-4 py-3.5 sm:px-5">
+              <div class="mr-3 flex h-9 w-9 items-center justify-center rounded-full bg-sky-500 text-xs font-medium text-white">
+                出
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <p class="text-[15px] font-medium text-slate-900">地铁通勤</p>
+                  <p class="text-sm font-medium text-slate-900">- ¥ 8</p>
+                </div>
+                <div class="mt-0.5 flex items-center justify-between text-xs text-slate-400">
+                  <span>昨天 · 18:02</span>
+                  <span>交通</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="flex items-center px-4 py-3.5 sm:px-5">
+              <div class="mr-3 flex h-9 w-9 items-center justify-center rounded-full bg-amber-500 text-xs font-medium text-white">
+                生
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <p class="text-[15px] font-medium text-slate-900">超市日用品</p>
+                  <p class="text-sm font-medium text-slate-900">- ¥ 162</p>
+                </div>
+                <div class="mt-0.5 flex items-center justify-between text-xs text-slate-400">
+                  <span>周日 · 16:37</span>
+                  <span>生活</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <button
+        id="fabButton"
+        type="button"
+        aria-label="新增一笔支出"
+        class="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-soft shadow-black/40 ring-2 ring-white/80 transition hover:bg-slate-800 active:scale-95 sm:bottom-8 sm:right-[max(2rem,calc(50%-20rem))]"
+      >
+        <span class="sr-only">新增一笔支出</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14" />
+          <path d="M5 12h14" />
+        </svg>
+      </button>
+    </div>
+
+    <div id="modalOverlay" class="fixed inset-0 z-40 hidden bg-black/30 backdrop-blur-sm"></div>
+    <section
+      id="addExpenseModal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="modalTitle"
+      class="fixed inset-x-0 bottom-0 z-50 hidden rounded-t-3xl bg-white/90 p-5 shadow-soft backdrop-blur-xl ring-1 ring-black/5 sm:mx-auto sm:bottom-8 sm:max-w-md sm:rounded-3xl"
+    >
+      <div class="mb-4 flex items-center justify-between">
+        <h3 id="modalTitle" class="text-base font-semibold tracking-tight text-slate-900">新增消费</h3>
+        <button id="closeModal" type="button" class="rounded-full px-2 py-1 text-sm text-slate-500 hover:bg-slate-100">关闭</button>
+      </div>
+      <form id="expenseForm" class="space-y-3">
+        <div>
+          <label for="expenseName" class="mb-1 block text-xs font-medium text-slate-500">消费名称</label>
+          <input
+            id="expenseName"
+            name="expenseName"
+            type="text"
+            required
+            placeholder="例如：电影票"
+            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none ring-accent/30 transition placeholder:text-slate-400 focus:border-accent focus:ring-2"
+          />
+        </div>
+        <div>
+          <label for="expenseAmount" class="mb-1 block text-xs font-medium text-slate-500">金额</label>
+          <input
+            id="expenseAmount"
+            name="expenseAmount"
+            type="number"
+            min="0.01"
+            step="0.01"
+            required
+            placeholder="例如：58"
+            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none ring-accent/30 transition placeholder:text-slate-400 focus:border-accent focus:ring-2"
+          />
+        </div>
+        <button
+          type="submit"
+          class="mt-2 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 active:scale-[0.99]"
+        >
+          确定添加
+        </button>
+      </form>
+    </section>
+
+    <script>
+      (function () {
+        const budget = 8000;
+        const baseTotal = 4268;
+        const storageKey = "wallet_added_expenses_v1";
+        let addedExpenses = [];
+        let totalSpent = baseTotal;
+        const iconPalette = ["bg-violet-500", "bg-rose-500", "bg-emerald-500", "bg-orange-500", "bg-cyan-500"];
+        let paletteIndex = 0;
+
+        const totalEl = document.getElementById("monthlyTotal");
+        const remainingEl = document.getElementById("remainingBudget");
+        const fabButton = document.getElementById("fabButton");
+        const modal = document.getElementById("addExpenseModal");
+        const overlay = document.getElementById("modalOverlay");
+        const closeModalBtn = document.getElementById("closeModal");
+        const form = document.getElementById("expenseForm");
+        const nameInput = document.getElementById("expenseName");
+        const amountInput = document.getElementById("expenseAmount");
+        const expenseList = document.getElementById("expenseList");
+        const clearTodayBtn = document.getElementById("clearTodayBtn");
+        const installPrompt = document.getElementById("installPrompt");
+        const installAppBtn = document.getElementById("installAppBtn");
+        const installHintText = document.getElementById("installHintText");
+        let deferredInstallPrompt = null;
+
+        function formatMoney(value) {
+          return "¥ " + value.toLocaleString("zh-CN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+        }
+
+        function getCategoryByName(name) {
+          if (name.includes("咖啡") || name.includes("早餐") || name.includes("午餐")) return "饮食";
+          if (name.includes("地铁") || name.includes("公交") || name.includes("打车")) return "交通";
+          if (name.includes("超市") || name.includes("日用品")) return "生活";
+          return "其他";
+        }
+
+        function getFirstChar(name) {
+          const text = name.trim();
+          return text ? text[0] : "记";
+        }
+
+        function updateSummary() {
+          totalEl.textContent = formatMoney(totalSpent);
+          remainingEl.textContent = formatMoney(Math.max(0, budget - totalSpent));
+        }
+
+        function getDateKey(date) {
+          const y = date.getFullYear();
+          const m = String(date.getMonth() + 1).padStart(2, "0");
+          const d = String(date.getDate()).padStart(2, "0");
+          return `${y}-${m}-${d}`;
+        }
+
+        function saveExpenses() {
+          localStorage.setItem(storageKey, JSON.stringify(addedExpenses));
+        }
+
+        function loadExpenses() {
+          try {
+            const raw = localStorage.getItem(storageKey);
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+            return parsed.filter(
+              (item) =>
+                item &&
+                typeof item.id === "string" &&
+                typeof item.name === "string" &&
+                Number.isFinite(Number(item.amount)) &&
+                typeof item.timestamp === "string"
+            );
+          } catch (error) {
+            return [];
+          }
+        }
+
+        function openModal() {
+          overlay.classList.remove("hidden");
+          modal.classList.remove("hidden");
+          setTimeout(() => nameInput.focus(), 0);
+        }
+
+        function closeModal() {
+          overlay.classList.add("hidden");
+          modal.classList.add("hidden");
+          form.reset();
+        }
+
+        function createExpenseRow(record) {
+          const article = document.createElement("article");
+          article.className = "flex items-center px-4 py-3.5 sm:px-5";
+          article.dataset.recordId = record.id;
+          article.dataset.dynamic = "1";
+
+          const recordDate = new Date(record.timestamp);
+          const time = recordDate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+          const todayLabel = getDateKey(recordDate) === getDateKey(new Date()) ? "今天" : "此前";
+          const category = getCategoryByName(record.name);
+          const iconClass = record.iconClass || "bg-violet-500";
+
+          article.innerHTML = `
+            <div class="mr-3 flex h-9 w-9 items-center justify-center rounded-full ${iconClass} text-xs font-medium text-white">
+              ${getFirstChar(record.name)}
+            </div>
+            <div class="flex-1">
+              <div class="flex items-center justify-between">
+                <p class="text-[15px] font-medium text-slate-900"></p>
+                <p class="text-sm font-medium text-slate-900"></p>
+              </div>
+              <div class="mt-0.5 flex items-center justify-between text-xs text-slate-400">
+                <span>${todayLabel} · ${time}</span>
+                <span>${category}</span>
+              </div>
+            </div>
+          `;
+
+          article.querySelector("p.text-\\[15px\\]").textContent = record.name;
+          article.querySelector("p.text-sm").textContent = `- ${formatMoney(Number(record.amount))}`;
+
+          return article;
+        }
+
+        function renderStoredExpenses() {
+          const sorted = [...addedExpenses].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+          sorted.forEach((record) => {
+            const row = createExpenseRow(record);
+            expenseList.prepend(row);
+          });
+        }
+
+        function recalculateTotal() {
+          const addedTotal = addedExpenses.reduce((sum, item) => sum + Number(item.amount), 0);
+          totalSpent = baseTotal + addedTotal;
+          updateSummary();
+        }
+
+        fabButton.addEventListener("click", openModal);
+        closeModalBtn.addEventListener("click", closeModal);
+        overlay.addEventListener("click", closeModal);
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
+        });
+
+        form.addEventListener("submit", (event) => {
+          event.preventDefault();
+
+          const name = nameInput.value.trim();
+          const amount = Number(amountInput.value);
+          if (!name || !Number.isFinite(amount) || amount <= 0) return;
+
+          const record = {
+            id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+            name,
+            amount,
+            timestamp: new Date().toISOString(),
+            iconClass: iconPalette[paletteIndex % iconPalette.length],
+          };
+          paletteIndex += 1;
+
+          const newRow = createExpenseRow(record);
+          expenseList.prepend(newRow);
+          addedExpenses.push(record);
+          saveExpenses();
+
+          recalculateTotal();
+          closeModal();
+        });
+
+        clearTodayBtn.addEventListener("click", () => {
+          const todayKey = getDateKey(new Date());
+          const hasTodayData = addedExpenses.some((item) => getDateKey(new Date(item.timestamp)) === todayKey);
+          if (!hasTodayData) return;
+          const shouldClear = window.confirm("确认清空今日新增的消费记录吗？此操作不可撤销。");
+          if (!shouldClear) return;
+
+          addedExpenses = addedExpenses.filter((item) => getDateKey(new Date(item.timestamp)) !== todayKey);
+          saveExpenses();
+
+          expenseList.querySelectorAll('article[data-dynamic="1"]').forEach((node) => {
+            const recordId = node.dataset.recordId;
+            const matched = addedExpenses.find((item) => item.id === recordId);
+            if (!matched) node.remove();
+          });
+
+          recalculateTotal();
+        });
+
+        addedExpenses = loadExpenses();
+        renderStoredExpenses();
+        recalculateTotal();
+
+        function isStandaloneMode() {
+          return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+        }
+
+        function hideInstallHint() {
+          installPrompt.classList.add("hidden");
+          installPrompt.classList.remove("flex");
+        }
+
+        function showInstallHint(message, canInstall) {
+          if (isStandaloneMode()) {
+            hideInstallHint();
+            return;
+          }
+          installHintText.textContent = message;
+          installAppBtn.disabled = !canInstall;
+          installPrompt.classList.remove("hidden");
+          installPrompt.classList.add("flex");
+        }
+
+        if ("serviceWorker" in navigator) {
+          window.addEventListener("load", () => {
+            navigator.serviceWorker
+              .register("./sw.js")
+              .then(() => {
+                console.log("Manifest 路径已重置");
+                console.log("PWA 配置已重新加载");
+              })
+              .catch(() => {});
+          });
+        }
+
+        let installEventReceived = false;
+        let installCheckTimer = null;
+
+        if (isStandaloneMode()) {
+          hideInstallHint();
+        } else if (!window.isSecureContext) {
+          showInstallHint("当前不是安全环境，安装功能需要通过 https 或 localhost 打开。", false);
+        } else {
+          showInstallHint("正在检查安装条件，请稍候…", false);
+          installCheckTimer = window.setTimeout(() => {
+            if (!installEventReceived && !deferredInstallPrompt) {
+              showInstallHint("暂未触发安装事件。可继续浏览后重试，或用 Chrome 菜单手动安装。", true);
+            }
+          }, 5000);
+        }
+
+        window.addEventListener("beforeinstallprompt", (event) => {
+          event.preventDefault();
+          installEventReceived = true;
+          if (installCheckTimer) {
+            clearTimeout(installCheckTimer);
+            installCheckTimer = null;
+          }
+          deferredInstallPrompt = event;
+          showInstallHint("可安装到桌面，点击右侧按钮即可安装。", true);
+        });
+
+        installAppBtn.addEventListener("click", async () => {
+          if (!deferredInstallPrompt) {
+            showInstallHint("当前未触发系统安装弹窗。请在 Chrome 地址栏右侧或菜单中选择“安装应用”。", true);
+            return;
+          }
+          deferredInstallPrompt.prompt();
+          const choice = await deferredInstallPrompt.userChoice;
+          if (choice.outcome === "accepted") {
+            hideInstallHint();
+          } else {
+            showInstallHint("你已取消安装，可稍后再次点击安装。", true);
+          }
+          deferredInstallPrompt = null;
+        });
+
+        window.addEventListener("appinstalled", () => {
+          hideInstallHint();
+          deferredInstallPrompt = null;
+        });
+      })();
+    </script>
+  </body>
+</html>
+
