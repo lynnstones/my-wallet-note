@@ -439,6 +439,32 @@
       .logout-icon-btn:active {
         transform: scale(0.90);
       }
+
+      /* ── 同步 Toast 提示 ────────────────────────────────── */
+      .sync-toast {
+        position: fixed;
+        bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
+        left: 50%;
+        transform: translateX(-50%) translateY(8px);
+        opacity: 0;
+        background: rgba(15, 23, 42, 0.82);
+        color: rgba(255, 255, 255, 0.92);
+        font-size: 0.8rem;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        padding: 0.45rem 1.2rem;
+        border-radius: 99px;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        transition: opacity 0.22s ease, transform 0.22s ease;
+        pointer-events: none;
+        z-index: 300;
+        white-space: nowrap;
+      }
+      .sync-toast.show {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
     </style>
   </head>
   <body class="bg-background text-slate-900" style="min-height:100vh;min-height:100dvh">
@@ -927,6 +953,71 @@
         let budget = (() => { const v = Number(localStorage.getItem(BUDGET_KEY)); return v > 0 ? v : 8000; })();
         const baseTotal = 0;
         const storageKey = "wallet_added_expenses_v2";
+
+        // ── 本地账单缓存 (多端快速首屏 + 离线支持) ─────────────────
+        const EXPENSE_CACHE_KEY  = "wallet_expense_cache_v1";
+        const HISTORY_CACHE_KEY  = "wallet_history_cache_v1";
+        const HISTORY_CACHE_TTL  = 30 * 60 * 1000; // 历史月份缓存 30 分钟
+
+        function loadExpenseCache(familyCode) {
+          try {
+            const raw = localStorage.getItem(EXPENSE_CACHE_KEY);
+            if (!raw) return [];
+            const all = JSON.parse(raw);
+            return (all[familyCode] || {}).expenses || [];
+          } catch { return []; }
+        }
+
+        function saveExpenseCache(familyCode, expenses) {
+          try {
+            const raw = localStorage.getItem(EXPENSE_CACHE_KEY);
+            const all = raw ? JSON.parse(raw) : {};
+            all[familyCode] = { expenses: expenses.slice(0, 1000), syncedAt: Date.now() };
+            localStorage.setItem(EXPENSE_CACHE_KEY, JSON.stringify(all));
+          } catch (e) { console.warn("[expense-cache]", e?.message); }
+        }
+
+        function loadHistoryCache(familyCode, year, month) {
+          try {
+            const raw = localStorage.getItem(HISTORY_CACHE_KEY);
+            if (!raw) return null;
+            const all = JSON.parse(raw);
+            const entry = (all[familyCode] || {})[`${year}-${month}`];
+            if (!entry) return null;
+            // 当月数据不走本地缓存，随时可能有新记录
+            const n = new Date();
+            if (year === n.getFullYear() && month === (n.getMonth() + 1)) return null;
+            if (Date.now() - entry.cachedAt > HISTORY_CACHE_TTL) return null;
+            return entry.expenses;
+          } catch { return null; }
+        }
+
+        function saveHistoryCache(familyCode, year, month, expenses) {
+          try {
+            const raw = localStorage.getItem(HISTORY_CACHE_KEY);
+            const all = raw ? JSON.parse(raw) : {};
+            if (!all[familyCode]) all[familyCode] = {};
+            all[familyCode][`${year}-${month}`] = { expenses, cachedAt: Date.now() };
+            // 保留最近 6 个月，防止 localStorage 膨胀
+            const keys = Object.keys(all[familyCode]).sort().reverse();
+            if (keys.length > 6) keys.slice(6).forEach((k) => delete all[familyCode][k]);
+            localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(all));
+          } catch (e) { console.warn("[history-cache]", e?.message); }
+        }
+
+        // ── 轻量 Toast 通知 ─────────────────────────────────────────
+        let _toastEl = null, _toastTimer = null;
+        function showToast(msg) {
+          if (!_toastEl) {
+            _toastEl = document.createElement("div");
+            _toastEl.className = "sync-toast";
+            document.body.appendChild(_toastEl);
+          }
+          _toastEl.textContent = msg;
+          _toastEl.classList.add("show");
+          clearTimeout(_toastTimer);
+          _toastTimer = setTimeout(() => _toastEl.classList.remove("show"), 2400);
+        }
         let addedExpenses = [];
         let totalSpent = baseTotal;
 
@@ -1190,6 +1281,7 @@
                 };
 
                 addedExpenses.unshift(record);
+                saveExpenseCache(session.familyCode, addedExpenses);
                 const el = createExpenseRow(record);
                 el.classList.add("sync-flash");
                 expenseList.prepend(el);
@@ -1209,6 +1301,7 @@
                 const id = payload.old?.id;
                 if (!id) return;
                 addedExpenses = addedExpenses.filter((e) => e.id !== id);
+                saveExpenseCache(session.familyCode, addedExpenses);
                 const node = expenseList.querySelector(`[data-record-id="${id}"]`);
                 if (node) {
                   node.style.transition = "opacity 0.3s, transform 0.3s";
@@ -1379,10 +1472,29 @@
         async function initApp() {
           applySession();
           await migrateOldData();
+
+          // ① 立即渲染本地缓存，加速首屏（离线也能看到数据）
+          const cached = loadExpenseCache(session.familyCode);
+          if (cached.length > 0) {
+            addedExpenses = cached;
+            renderExpenses();
+            recalculateTotal();
+          }
+
           syncFamilyMembers(); // 非阻塞，后台同步成员列表
-          addedExpenses = await fetchFamilyExpenses();
+
+          // ② 拉取云端最新数据，对比后更新
+          const fresh = await fetchFamilyExpenses();
+          const freshSig  = fresh.map((e) => e.id).join(",");
+          const cachedSig = cached.map((e) => e.id).join(",");
+          addedExpenses = fresh;
+          saveExpenseCache(session.familyCode, fresh); // 存入本地缓存，供下次快速启动
           renderExpenses();
           recalculateTotal();
+          if (cached.length > 0 && freshSig !== cachedSig) {
+            showToast("已同步最新账单 ✓");
+          }
+
           subscribeRealtime();
         }
 
@@ -1779,6 +1891,7 @@
 
           expenseList.prepend(createExpenseRow(record));
           addedExpenses.unshift(record);
+          saveExpenseCache(session.familyCode, addedExpenses);
           recalculateTotal();
           closeModal();
 
@@ -1888,11 +2001,19 @@
         }
 
         async function loadHistoryMonth(year, month) {
+          // 优先走本地缓存（当月除外，因为随时可能有新账单）
+          const hit = loadHistoryCache(session.familyCode, year, month);
+          if (hit) {
+            renderHistoryMonth(year, month, hit);
+            return;
+          }
+
           historyLoading.classList.remove("hidden");
           historyLoading.classList.add("flex");
           historySummaryCard.style.opacity = "0.45";
 
           const expenses = await fetchMonthExpenses(year, month);
+          saveHistoryCache(session.familyCode, year, month, expenses);
 
           historyLoading.classList.add("hidden");
           historyLoading.classList.remove("flex");
@@ -1955,6 +2076,7 @@
 
           const todayIds = new Set(todayItems.map((i) => i.id));
           addedExpenses = addedExpenses.filter((i) => !todayIds.has(i.id));
+          saveExpenseCache(session.familyCode, addedExpenses);
           expenseList.querySelectorAll('article[data-dynamic="1"]').forEach((node) => {
             if (todayIds.has(node.dataset.recordId)) node.remove();
           });
