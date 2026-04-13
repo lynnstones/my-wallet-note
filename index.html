@@ -104,23 +104,12 @@
       /* ── 登录卡片 ────────────────────────────────────────── */
       .login-card {
         padding: 2rem 1.75rem 1.75rem;
-        /* 移动端底部留出 Home 指示条安全区 */
-        padding-bottom: calc(1.75rem + env(safe-area-inset-bottom, 0px));
-        border-radius: 2rem 2rem 0 0;
+        border-radius: 2rem;
         background: rgba(22, 26, 40, 0.72);
         backdrop-filter: blur(32px);
         -webkit-backdrop-filter: blur(32px);
         border: 1px solid rgba(255,255,255,0.10);
-        border-bottom: none;
-        box-shadow: 0 -2px 40px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
-      }
-      @media (min-width: 640px) {
-        .login-card {
-          padding-bottom: 1.75rem;
-          border-radius: 2rem;
-          border-bottom: 1px solid rgba(255,255,255,0.10);
-          box-shadow: 0 24px 64px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
-        }
+        box-shadow: 0 24px 64px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
       }
 
       .login-field-group {
@@ -470,9 +459,9 @@
   <body class="bg-background text-slate-900" style="min-height:100vh;min-height:100dvh">
 
     <!-- ── 家庭登录遮罩 ───────────────────────────────────────── -->
-    <div id="loginOverlay" class="fixed inset-0 z-[100] flex items-end justify-center sm:items-center"
+    <div id="loginOverlay" class="fixed inset-0 z-[100] flex items-center justify-center"
          style="background:rgba(15,18,28,0.45);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)">
-      <div class="login-card w-full max-w-sm sm:max-w-md">
+      <div class="login-card w-full max-w-sm mx-4 sm:max-w-md sm:mx-0">
 
         <!-- 顶部图标区 -->
         <div class="mb-7 flex flex-col items-center gap-3">
