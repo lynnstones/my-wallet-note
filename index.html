@@ -1411,7 +1411,7 @@
             setTimeout(() => familyNewInput.focus(), 0);
           }
         }
-        function switchMemberMode(mode) {
+        function switchMemberMode(mode, autoFocus = false) {
           memberMode = mode;
           if (mode === "dropdown") {
             memberSelectBtn.classList.remove("hidden");
@@ -1420,7 +1420,7 @@
             memberSelectBtn.classList.add("hidden");
             memberDropdown.classList.add("hidden");
             memberNewInput.classList.remove("hidden");
-            setTimeout(() => memberNewInput.focus(), 0);
+            if (autoFocus) setTimeout(() => memberNewInput.focus(), 0);
           }
         }
 
@@ -1472,7 +1472,7 @@
           addBtn.innerHTML = `<svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>新增昵称`;
           addBtn.addEventListener("click", () => {
             closeMemberDropdown();
-            switchMemberMode("text");
+            switchMemberMode("text", true); // 用户主动点击时才抢焦点
             currentMember = "";
             memberNewInput.value = "";
           });
@@ -1520,6 +1520,74 @@
         document.addEventListener("click", (e) => {
           if (familySelectWrap && !familySelectWrap.contains(e.target)) closeFamilyDropdown();
           if (memberSelectWrap && !memberSelectWrap.contains(e.target)) closeMemberDropdown();
+        });
+
+        // ── 家庭名称输入框智能匹配 ──────────────────────────────
+        // 场景1：同设备，localStorage 有记录 → 立即响应
+        // 场景2：换设备/清缓存，localStorage 空  → 500ms 后查 Supabase
+        let _memberLookupTimer = null;
+
+        familyNewInput.addEventListener("input", () => {
+          const typed = familyNewInput.value.trim();
+
+          // ① 本地命中 — 立即展示昵称下拉
+          if (typed && familiesData.families[typed]) {
+            clearTimeout(_memberLookupTimer);
+            selectFamily(typed);
+            return;
+          }
+
+          // 未命中 — 成员区重置为文本输入
+          currentFamily = "";
+          currentMember = "";
+          switchMemberMode("text");
+          memberNewInput.value = "";
+
+          // ② 无内容 — 不请求
+          if (!typed) {
+            clearTimeout(_memberLookupTimer);
+            return;
+          }
+
+          // ③ 防抖 500ms 后查询 Supabase，适用于换设备的情况
+          clearTimeout(_memberLookupTimer);
+          _memberLookupTimer = setTimeout(async () => {
+            try {
+              const { data } = await sb
+                .from("expenses")
+                .select("member")
+                .eq("family_code", typed)
+                .limit(200);
+
+              if (!data || data.length === 0) return;
+
+              // 去重，过滤空值
+              const cloudMembers = [...new Set(data.map((r) => r.member).filter(Boolean))];
+              if (cloudMembers.length === 0) return;
+
+              // 合并到本地缓存（不覆盖已有顺序）
+              if (!familiesData.families[typed]) {
+                familiesData.families[typed] = { lastMember: cloudMembers[0], members: [] };
+              }
+              cloudMembers.forEach((m) => {
+                if (!familiesData.families[typed].members.includes(m)) {
+                  familiesData.families[typed].members.push(m);
+                }
+              });
+
+              // 展示昵称下拉
+              currentFamily = typed;
+              switchMemberMode("dropdown");
+              const lastUsed = familiesData.families[typed].lastMember;
+              if (lastUsed && familiesData.families[typed].members.includes(lastUsed)) {
+                selectMember(lastUsed);
+              } else {
+                currentMember = "";
+                memberSelectText.className = "custom-select-placeholder";
+                memberSelectText.textContent = "请选择昵称";
+              }
+            } catch (_) { /* 网络异常静默忽略 */ }
+          }, 500);
         });
 
         // ── 初始化登录 UI ──
