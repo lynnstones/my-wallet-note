@@ -10,6 +10,7 @@
     <link rel="apple-touch-icon" href="./wallet-512.png?v=4" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script>
       tailwind.config = {
         theme: {
@@ -57,17 +58,305 @@
         mask: url("./wallet.svg?v=4") no-repeat center / contain;
         background-color: currentColor;
       }
+
+      /* ── 登录卡片 ────────────────────────────────────────── */
+      .login-card {
+        padding: 2rem 1.75rem 1.75rem;
+        border-radius: 2rem 2rem 0 0;
+        background: rgba(22, 26, 40, 0.72);
+        backdrop-filter: blur(32px);
+        -webkit-backdrop-filter: blur(32px);
+        border: 1px solid rgba(255,255,255,0.10);
+        border-bottom: none;
+        box-shadow: 0 -2px 40px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
+      }
+      @media (min-width: 640px) {
+        .login-card {
+          border-radius: 2rem;
+          border-bottom: 1px solid rgba(255,255,255,0.10);
+          box-shadow: 0 24px 64px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.08);
+        }
+      }
+
+      .login-field-group {
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 1.125rem;
+        overflow: hidden;
+      }
+      .login-input {
+        display: block;
+        width: 100%;
+        padding: 0.875rem 1.125rem;
+        font-size: 0.9375rem;
+        letter-spacing: 0.01em;
+        color: #f1f5f9;
+        background: transparent;
+        outline: none;
+        border: none;
+        -webkit-font-smoothing: antialiased;
+      }
+      .login-input::placeholder {
+        color: rgba(241,245,249,0.35);
+      }
+      .login-input:focus {
+        background: rgba(255,255,255,0.04);
+      }
+      .login-field-divider {
+        height: 1px;
+        background: rgba(255,255,255,0.09);
+        margin: 0 1.125rem;
+      }
+
+      .login-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        width: 100%;
+        padding: 0.9375rem 1.5rem;
+        font-size: 0.9375rem;
+        font-weight: 600;
+        letter-spacing: 0.015em;
+        color: #fff;
+        background: linear-gradient(160deg, #2979ff 0%, #0051d4 100%);
+        border: none;
+        border-radius: 1.125rem;
+        box-shadow: 0 4px 18px rgba(0,82,255,0.40), inset 0 1px 0 rgba(255,255,255,0.16);
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+        -webkit-font-smoothing: antialiased;
+      }
+      .login-btn:hover {
+        opacity: 0.92;
+        box-shadow: 0 6px 24px rgba(0,82,255,0.50), inset 0 1px 0 rgba(255,255,255,0.16);
+      }
+      .login-btn:active {
+        transform: scale(0.985);
+        box-shadow: 0 2px 10px rgba(0,82,255,0.35);
+      }
+
+      /* ── 同步闪烁动画（蓝色） ───────────────────────────── */
+      @keyframes syncFlash {
+        0%   { background-color: rgba(0,122,255,0.14); box-shadow: inset 0 0 0 1.5px rgba(0,122,255,0.30); }
+        50%  { background-color: rgba(0,122,255,0.06); box-shadow: inset 0 0 0 1px rgba(0,122,255,0.10); }
+        100% { background-color: transparent;           box-shadow: none; }
+      }
+      .sync-flash {
+        animation: syncFlash 1.6s cubic-bezier(0.4,0,0.2,1) forwards;
+        border-radius: 1rem;
+      }
+
+      /* ── 预算弹窗 ────────────────────────────────────────── */
+      .budget-sheet {
+        background: rgba(255,255,255,0.94);
+        backdrop-filter: blur(40px) saturate(1.8);
+        -webkit-backdrop-filter: blur(40px) saturate(1.8);
+        border-radius: 2rem 2rem 0 0;
+        box-shadow: 0 -2px 60px rgba(0,0,0,0.14), inset 0 1px 0 rgba(255,255,255,0.9);
+        border-top: 1px solid rgba(0,0,0,0.06);
+      }
+      @media (min-width: 640px) {
+        .budget-sheet {
+          border-radius: 2rem;
+          border: 1px solid rgba(0,0,0,0.08);
+          box-shadow: 0 24px 80px rgba(0,0,0,0.18);
+        }
+      }
+      .budget-input {
+        width: 100%;
+        padding: 0.875rem 1rem 0.875rem 2.5rem;
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        color: #0f172a;
+        background: rgba(0,0,0,0.034);
+        border: 1.5px solid transparent;
+        border-radius: 1rem;
+        outline: none;
+        transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+        -moz-appearance: textfield;
+        appearance: textfield;
+      }
+      .budget-input::-webkit-inner-spin-button,
+      .budget-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+      .budget-input::placeholder { color: #cbd5e1; font-weight: 400; font-size: 1.125rem; }
+      .budget-input:focus {
+        border-color: #007aff;
+        background: #fff;
+        box-shadow: 0 0 0 4px rgba(0,122,255,0.12);
+      }
+
+      /* ── Tab 导航栏 ─────────────────────────────────────── */
+      .tab-bar {
+        display: flex;
+        background: rgba(0,0,0,0.05);
+        border-radius: 1rem;
+        padding: 3px;
+        gap: 2px;
+      }
+      .tab-btn {
+        flex: 1;
+        padding: 0.5rem 1rem;
+        border-radius: 0.8125rem;
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: #64748b;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        transition: all 0.18s ease;
+        letter-spacing: -0.01em;
+      }
+      .tab-btn.active {
+        background: #fff;
+        color: #0f172a;
+        font-weight: 600;
+        box-shadow: 0 1px 5px rgba(0,0,0,0.11), 0 0 0 0.5px rgba(0,0,0,0.06);
+      }
+
+      /* ── 加载动画 ────────────────────────────────────────── */
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .loading-spinner {
+        width: 20px; height: 20px;
+        border: 2px solid #e2e8f0;
+        border-top-color: #007aff;
+        border-radius: 50%;
+        animation: spin 0.75s linear infinite;
+        flex-shrink: 0;
+      }
+
+      /* ── 历史账单分类进度条 ──────────────────────────────── */
+      .cat-bar-track {
+        height: 5px;
+        border-radius: 99px;
+        background: #f1f5f9;
+        overflow: hidden;
+      }
+      .cat-bar-fill {
+        height: 100%;
+        border-radius: 99px;
+        width: 0;
+        transition: width 0.65s cubic-bezier(0.34,1.10,0.64,1);
+      }
+
+      /* ── 月份导航按钮 ────────────────────────────────────── */
+      .month-nav-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.25rem; height: 2.25rem;
+        border-radius: 50%;
+        border: none;
+        background: white;
+        color: #334155;
+        cursor: pointer;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.09), 0 0 0 0.5px rgba(0,0,0,0.06);
+        transition: all 0.15s;
+        flex-shrink: 0;
+      }
+      .month-nav-btn:hover  { background: #f8fafc; }
+      .month-nav-btn:active { transform: scale(0.90); }
+      .month-nav-btn:disabled { opacity: 0.28; cursor: not-allowed; transform: none; }
+
+      /* ── 退出按钮 ────────────────────────────────────────── */
+      .logout-icon-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2rem;
+        height: 2rem;
+        border-radius: 50%;
+        border: none;
+        background: rgba(0,0,0,0.04);
+        color: #94a3b8;
+        cursor: pointer;
+        transition: background 0.15s, color 0.15s, transform 0.12s;
+      }
+      .logout-icon-btn:hover {
+        background: rgba(239,68,68,0.08);
+        color: #ef4444;
+      }
+      .logout-icon-btn:active {
+        transform: scale(0.90);
+      }
     </style>
   </head>
   <body class="min-h-screen bg-background text-slate-900">
+
+    <!-- ── 家庭登录遮罩 ───────────────────────────────────────── -->
+    <div id="loginOverlay" class="fixed inset-0 z-[100] flex items-end justify-center sm:items-center"
+         style="background:rgba(15,18,28,0.45);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)">
+      <div class="login-card w-full max-w-sm sm:max-w-md">
+
+        <!-- 顶部图标区 -->
+        <div class="mb-7 flex flex-col items-center gap-3">
+          <div class="flex h-16 w-16 items-center justify-center rounded-[22px] shadow-lg"
+               style="background:linear-gradient(145deg,#1a6fff,#0051d4);box-shadow:0 8px 24px rgba(0,82,255,0.35)">
+            <svg class="h-8 w-8 text-white" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M3.75 6.75a3 3 0 0 0-3 3v6.75a3 3 0 0 0 3 3h16.5a3 3 0 0 0 3-3V9.75a3 3 0 0 0-3-3H3.75Zm16.5 2.25a.75.75 0 0 1 .75.75v.008a.75.75 0 0 1-.75.742h-1.5a.75.75 0 0 1-.75-.742V9.75a.75.75 0 0 1 .75-.75h1.5ZM6 12.75a3 3 0 1 1 6 0 3 3 0 0 1-6 0Z"/>
+            </svg>
+          </div>
+          <div class="text-center">
+            <h2 class="text-xl font-semibold tracking-tight" style="color:#f1f5f9">开启家庭共享账本</h2>
+            <p class="mt-1.5 text-[13px] leading-relaxed" style="color:rgba(241,245,249,0.55)">
+              所有成员共用一个暗号，数据实时同步
+            </p>
+          </div>
+        </div>
+
+        <!-- 表单 -->
+        <form id="loginForm" class="space-y-3.5">
+          <div class="login-field-group">
+            <input id="familyCode" type="password" required autocomplete="off"
+              placeholder="家庭暗号"
+              class="login-input" />
+            <div class="login-field-divider"></div>
+            <input id="memberName" type="text" required autocomplete="off" maxlength="8"
+              placeholder="你的昵称（如：爸爸）"
+              class="login-input" />
+          </div>
+
+          <p id="loginError" class="hidden pt-0.5 text-center text-xs" style="color:#ff6b6b">暗号或昵称不能为空</p>
+
+          <button type="submit" class="login-btn">
+            <span>进入家庭账本</span>
+            <svg class="h-4 w-4 opacity-70" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3"/>
+            </svg>
+          </button>
+        </form>
+
+        <p class="mt-5 text-center text-[11px]" style="color:rgba(241,245,249,0.32)">
+          同一暗号下的所有人共享一个账本
+        </p>
+      </div>
+    </div>
+    <!-- ─────────────────────────────────────────────────────────── -->
+
     <div class="mx-auto flex min-h-screen max-w-xl flex-col px-4 pb-28 pt-10 sm:px-6">
       <header class="mb-8 flex items-center justify-between">
-        <div class="h-2 w-16 rounded-full bg-slate-300/70"></div>
-        <div class="flex items-center gap-2 text-xs text-slate-500">
-          <span>本月</span>
-          <span class="inline-flex items-center rounded-full bg-slate-200/80 px-2 py-0.5">
-            预算 · ¥ 8,000
-          </span>
+        <!-- 左：成员徽章 -->
+        <div id="memberBadge" class="flex items-center gap-1.5 text-xs text-slate-500">
+          <span id="memberLabel" class="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-2.5 py-1 font-medium"></span>
+          <!-- 实时状态指示点 -->
+          <span id="syncDot" class="hidden h-1.5 w-1.5 rounded-full bg-emerald-400" title="实时同步中"></span>
+        </div>
+        <!-- 右：预算（可点击） + 退出 -->
+        <div class="flex items-center gap-2">
+          <button id="budgetDisplay"
+            class="inline-flex items-center gap-1 rounded-full bg-slate-200/80 px-2.5 py-1 text-xs text-slate-500 transition hover:bg-slate-300/70 active:scale-95"
+            title="点击设置预算">
+            <svg class="h-3 w-3 shrink-0 opacity-60" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487a2.032 2.032 0 1 1 2.872 2.872L7.5 19.5l-4 1 1-4 12.362-12.013Z"/>
+            </svg>
+            预算 · ¥ <span id="budgetValue">8,000</span>
+          </button>
+          <button id="logoutBtn" class="logout-icon-btn" title="退出登录 / 切换身份">
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75"/>
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -85,7 +374,13 @@
         </button>
       </div>
 
-      <main class="flex flex-1 flex-col gap-6">
+      <!-- ── Tab 导航 ───────────────────────────────────────── -->
+      <div class="tab-bar mb-5">
+        <button id="tabCurrentBtn" class="tab-btn active">本月</button>
+        <button id="tabHistoryBtn" class="tab-btn">历史账单</button>
+      </div>
+
+      <main id="currentView" class="flex flex-1 flex-col gap-6">
         <section>
           <div class="flex items-center gap-2">
             <span class="wallet-logo h-8 w-8 text-slate-900" aria-hidden="true"></span>
@@ -200,6 +495,73 @@
         </section>
       </main>
 
+      <!-- ── 历史账单视图 ──────────────────────────────────── -->
+      <section id="historyView" class="hidden flex-col gap-5 flex-1">
+
+        <!-- 月份导航 -->
+        <div class="flex items-center justify-between rounded-2xl bg-white/75 px-4 py-3.5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+          <button id="prevMonthBtn" class="month-nav-btn" title="上一个月">
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/>
+            </svg>
+          </button>
+          <div class="text-center">
+            <p id="historyMonthTitle" class="text-[17px] font-semibold tracking-tight text-slate-900">加载中…</p>
+            <button id="jumpToCurrentBtn" class="mt-0.5 text-[11px] font-medium text-accent hover:opacity-70 transition">↩ 回到本月</button>
+          </div>
+          <button id="nextMonthBtn" class="month-nav-btn" title="下一个月">
+            <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
+            </svg>
+          </button>
+        </div>
+
+        <!-- 加载状态 -->
+        <div id="historyLoading" class="hidden items-center justify-center gap-3 py-10 text-sm text-slate-400">
+          <div class="loading-spinner"></div>
+          <span>加载月度账单…</span>
+        </div>
+
+        <!-- 月度汇总卡片 -->
+        <div id="historySummaryCard" class="rounded-3xl bg-white/75 p-5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl transition-opacity">
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">当月总支出</p>
+              <p id="historyTotalAmount" class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">¥ 0</p>
+              <div class="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                <span id="historyCountEl">共 0 笔</span>
+                <span id="historyMembersEl"></span>
+              </div>
+            </div>
+            <div class="rounded-2xl bg-accentSoft px-3 py-2 text-right">
+              <p class="text-[11px] text-slate-500">本家庭</p>
+              <p id="historyFamilyTag" class="mt-0.5 text-xs font-semibold text-accent">共享账本</p>
+            </div>
+          </div>
+
+          <!-- 分类进度条 -->
+          <div id="historyCategoryBars" class="mt-5 space-y-3.5"></div>
+        </div>
+
+        <!-- 账单明细列表 -->
+        <section>
+          <h2 class="mb-3 text-sm font-semibold tracking-tight text-slate-900">账单明细</h2>
+
+          <!-- 空状态 -->
+          <div id="historyEmpty" class="hidden flex-col items-center justify-center rounded-3xl bg-white/75 py-16 text-center shadow-soft ring-1 ring-black/5">
+            <svg class="mb-3 h-10 w-10 text-slate-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+              <circle cx="12" cy="12" r="9"/>
+            </svg>
+            <p class="text-sm text-slate-400">本月暂无账单记录</p>
+            <p class="mt-1 text-xs text-slate-300">家庭成员记账后将在此显示</p>
+          </div>
+
+          <div id="historyExpenseList" class="divide-y divide-slate-100 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-black/5"></div>
+        </section>
+      </section>
+      <!-- ─────────────────────────────────────────────────────────── -->
+
       <button
         id="fabButton"
         type="button"
@@ -310,10 +672,71 @@
       </form>
     </section>
 
+    <!-- ── 预算设置弹窗 ───────────────────────────────────────── -->
+    <div id="budgetOverlay" class="fixed inset-0 z-50 hidden flex items-end justify-center sm:items-center"
+         style="background:rgba(15,18,28,0.30);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
+      <div class="budget-sheet w-full max-w-sm overflow-hidden">
+        <!-- 拖拽把手（移动端） -->
+        <div class="flex justify-center pb-1 pt-3 sm:hidden">
+          <div class="h-1 w-10 rounded-full bg-slate-300/60"></div>
+        </div>
+        <div class="px-6 pb-8 pt-5">
+          <!-- 顶部信息 -->
+          <div class="mb-7 flex items-start justify-between">
+            <div>
+              <h3 class="text-[18px] font-semibold tracking-tight text-slate-900">设置本月预算</h3>
+              <p class="mt-1 text-[13px] leading-relaxed text-slate-400">修改后剩余额度实时刷新</p>
+            </div>
+            <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-accentSoft">
+              <svg class="h-5 w-5 text-accent" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+              </svg>
+            </div>
+          </div>
+
+          <!-- 金额输入 -->
+          <div class="relative mb-6">
+            <span class="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg font-semibold text-slate-400">¥</span>
+            <input id="budgetInput" class="budget-input" type="number" min="1" step="1"
+              inputmode="numeric" placeholder="输入预算金额" />
+          </div>
+
+          <!-- 快捷金额 -->
+          <div class="mb-6 flex gap-2">
+            <button class="budget-preset flex-1 rounded-xl bg-slate-100 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200 active:scale-95" data-val="3000">¥ 3,000</button>
+            <button class="budget-preset flex-1 rounded-xl bg-slate-100 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200 active:scale-95" data-val="5000">¥ 5,000</button>
+            <button class="budget-preset flex-1 rounded-xl bg-slate-100 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200 active:scale-95" data-val="8000">¥ 8,000</button>
+            <button class="budget-preset flex-1 rounded-xl bg-slate-100 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200 active:scale-95" data-val="12000">¥ 1.2W</button>
+          </div>
+
+          <!-- 按钮组 -->
+          <div class="grid grid-cols-2 gap-3">
+            <button id="cancelBudgetBtn"
+              class="rounded-2xl bg-slate-100 py-3.5 text-[15px] font-medium text-slate-600 transition hover:bg-slate-200 active:scale-[0.97]">
+              取消
+            </button>
+            <button id="saveBudgetBtn"
+              class="rounded-2xl py-3.5 text-[15px] font-semibold text-white transition active:scale-[0.97]"
+              style="background:linear-gradient(160deg,#2979ff 0%,#0051d4 100%);box-shadow:0 4px 16px rgba(0,82,255,0.38),inset 0 1px 0 rgba(255,255,255,0.18)">
+              确定
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ─────────────────────────────────────────────────────────── -->
+
     <script>
       (function () {
-        const budget = 8000;
-        const baseTotal = 4268;
+        // ── Supabase ────────────────────────────────────────────────
+        const SUPABASE_URL = "https://mcqfnlcwenrzoucsbdwk.supabase.co";
+        const SUPABASE_KEY = "sb_publishable_5YJxkgjM8E5gCFba6Gz-aQ_gTpr0w5l";
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // ────────────────────────────────────────────────────────────
+
+        const BUDGET_KEY = "wallet_budget_v1";
+        let budget = (() => { const v = Number(localStorage.getItem(BUDGET_KEY)); return v > 0 ? v : 8000; })();
+        const baseTotal = 0;
         const storageKey = "wallet_added_expenses_v2";
         let addedExpenses = [];
         let totalSpent = baseTotal;
@@ -334,12 +757,6 @@
           addedExpenses.forEach((item) => {
             const cat = item.category || "其他";
             totals[cat] = (totals[cat] || 0) + Number(item.amount);
-          });
-
-          // 合并固定示例金额（咖啡38·地铁8·日用品162）到对应分类
-          const base = { "餐饮": 38, "交通": 8, "购物": 162 };
-          Object.entries(base).forEach(([cat, amt]) => {
-            totals[cat] = (totals[cat] || 0) + amt;
           });
 
           const cats = Object.keys(totals).filter((k) => totals[k] > 0);
@@ -423,6 +840,7 @@
         }
         // ────────────────────────────────────────────────────────────
 
+        // ── DOM refs ──────────────────────────────────────────────
         const totalEl = document.getElementById("monthlyTotal");
         const remainingEl = document.getElementById("remainingBudget");
         const fabButton = document.getElementById("fabButton");
@@ -438,8 +856,42 @@
         const installPrompt = document.getElementById("installPrompt");
         const installAppBtn = document.getElementById("installAppBtn");
         const installHintText = document.getElementById("installHintText");
+        const loginOverlay = document.getElementById("loginOverlay");
+        const loginForm = document.getElementById("loginForm");
+        const loginError = document.getElementById("loginError");
+        const memberLabel = document.getElementById("memberLabel");
+        const logoutBtn = document.getElementById("logoutBtn");
+        const syncDot = document.getElementById("syncDot");
+        const budgetDisplay = document.getElementById("budgetDisplay");
+        const budgetValueEl = document.getElementById("budgetValue");
+        const budgetOverlay = document.getElementById("budgetOverlay");
+        const budgetInput = document.getElementById("budgetInput");
+        const cancelBudgetBtn = document.getElementById("cancelBudgetBtn");
+        const saveBudgetBtn = document.getElementById("saveBudgetBtn");
         let deferredInstallPrompt = null;
+        let realtimeChannel = null;
 
+        // ── Session ───────────────────────────────────────────────
+        const SESSION_KEY = "wallet_session_v1";
+        let session = null;   // { familyCode, member }
+
+        function loadSession() {
+          try {
+            const raw = localStorage.getItem(SESSION_KEY);
+            return raw ? JSON.parse(raw) : null;
+          } catch { return null; }
+        }
+
+        function saveSession(s) {
+          localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+        }
+
+        function clearSession() {
+          localStorage.removeItem(SESSION_KEY);
+          session = null;
+        }
+
+        // ── Helpers ───────────────────────────────────────────────
         function formatMoney(value) {
           return "¥ " + value.toLocaleString("zh-CN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
         }
@@ -447,6 +899,7 @@
         function updateSummary() {
           totalEl.textContent = formatMoney(totalSpent);
           remainingEl.textContent = formatMoney(Math.max(0, budget - totalSpent));
+          budgetValueEl.textContent = budget.toLocaleString("zh-CN");
         }
 
         function getDateKey(date) {
@@ -456,22 +909,126 @@
           return `${y}-${m}-${d}`;
         }
 
-        function saveExpenses() {
-          localStorage.setItem(storageKey, JSON.stringify(addedExpenses));
+        // ── Supabase I/O ──────────────────────────────────────────
+        async function saveExpenseToCloud(record) {
+          const { error } = await sb.from("expenses").insert({
+            id: record.id,
+            family_code: session.familyCode,
+            member: session.member,
+            name: record.name,
+            amount: record.amount,
+            category: record.category,
+            note: record.note || null,
+            created_at: record.timestamp,
+          });
+          if (error) console.error("Supabase 写入失败:", error.message);
         }
 
-        function loadExpenses() {
-          try {
-            const raw = localStorage.getItem(storageKey);
-            if (!raw) return [];
-            const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed)) return [];
-            return parsed;
-          } catch (error) {
+        async function fetchFamilyExpenses() {
+          const { data, error } = await sb
+            .from("expenses")
+            .select("*")
+            .eq("family_code", session.familyCode)
+            .order("created_at", { ascending: false });
+          if (error) {
+            console.error("Supabase 读取失败:", error.message);
             return [];
           }
+          return (data || []).map((row) => ({
+            id: row.id,
+            name: row.name,
+            amount: row.amount,
+            category: row.category,
+            note: row.note,
+            member: row.member,
+            timestamp: row.created_at,
+          }));
         }
 
+        async function deleteExpenseFromCloud(id) {
+          const { error } = await sb
+            .from("expenses")
+            .delete()
+            .eq("id", id)
+            .eq("family_code", session.familyCode);
+          if (error) console.error("Supabase 删除失败:", error.message);
+        }
+
+        // ── Realtime 订阅 ────────────────────────────────────────
+        function subscribeRealtime() {
+          if (realtimeChannel) {
+            sb.removeChannel(realtimeChannel);
+            realtimeChannel = null;
+          }
+          realtimeChannel = sb
+            .channel(`family-${session.familyCode}`)
+            // ── 新账单推送 ──
+            .on(
+              "postgres_changes",
+              {
+                event: "INSERT",
+                schema: "public",
+                table: "expenses",
+                filter: `family_code=eq.${session.familyCode}`,
+              },
+              (payload) => {
+                const row = payload.new;
+                if (addedExpenses.some((e) => e.id === row.id)) return;
+
+                const record = {
+                  id: row.id,
+                  name: row.name,
+                  amount: row.amount,
+                  category: row.category,
+                  note: row.note,
+                  member: row.member,
+                  timestamp: row.created_at,
+                };
+
+                addedExpenses.unshift(record);
+                const el = createExpenseRow(record);
+                el.classList.add("sync-flash");
+                expenseList.prepend(el);
+                recalculateTotal();
+              }
+            )
+            // ── 删除同步 ──
+            .on(
+              "postgres_changes",
+              {
+                event: "DELETE",
+                schema: "public",
+                table: "expenses",
+                filter: `family_code=eq.${session.familyCode}`,
+              },
+              (payload) => {
+                const id = payload.old?.id;
+                if (!id) return;
+                addedExpenses = addedExpenses.filter((e) => e.id !== id);
+                const node = expenseList.querySelector(`[data-record-id="${id}"]`);
+                if (node) {
+                  node.style.transition = "opacity 0.3s, transform 0.3s";
+                  node.style.opacity = "0";
+                  node.style.transform = "translateX(8px)";
+                  setTimeout(() => node.remove(), 310);
+                }
+                recalculateTotal();
+              }
+            )
+            .subscribe((status) => {
+              syncDot.classList.toggle("hidden", status !== "SUBSCRIBED");
+            });
+        }
+
+        function unsubscribeRealtime() {
+          if (realtimeChannel) {
+            sb.removeChannel(realtimeChannel);
+            realtimeChannel = null;
+          }
+          syncDot.classList.add("hidden");
+        }
+
+        // ── UI ────────────────────────────────────────────────────
         function openModal() {
           overlay.classList.remove("hidden");
           modal.classList.remove("hidden");
@@ -494,24 +1051,28 @@
           const time = recordDate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
           const todayLabel = getDateKey(recordDate) === getDateKey(new Date()) ? "今天" : "此前";
           const config = categoryConfig[record.category] || categoryConfig["其他"];
+          const memberTag = record.member ? `来自 ${record.member}` : "";
 
           article.innerHTML = `
             <div class="mr-3 category-icon ${config.class} scale-90"></div>
-            <div class="flex-1">
-              <div class="flex items-center justify-between">
-                <p class="text-[15px] font-medium text-slate-900"></p>
-                <p class="text-sm font-medium text-slate-900"></p>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <p class="truncate text-[15px] font-medium text-slate-900 name-el"></p>
+                <p class="shrink-0 text-sm font-medium text-slate-900 amount-el"></p>
               </div>
               <div class="mt-0.5 flex flex-col text-xs text-slate-400">
-                <span>${todayLabel} · ${time} · ${record.category}</span>
-                <span class="text-slate-400 italic mt-0.5 record-note"></span>
+                <div class="flex items-center gap-1.5">
+                  <span>${todayLabel} · ${time} · ${record.category}</span>
+                  ${memberTag ? `<span class="rounded-full bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">${memberTag}</span>` : ""}
+                </div>
+                <span class="italic mt-0.5 note-el"></span>
               </div>
             </div>
           `;
 
-          article.querySelector("p.text-\\[15px\\]").textContent = record.name;
-          article.querySelector("p.text-sm").textContent = `- ${formatMoney(Number(record.amount))}`;
-          const noteEl = article.querySelector(".record-note");
+          article.querySelector(".name-el").textContent = record.name;
+          article.querySelector(".amount-el").textContent = `- ${formatMoney(Number(record.amount))}`;
+          const noteEl = article.querySelector(".note-el");
           if (record.note) {
             noteEl.textContent = record.note;
           } else {
@@ -521,21 +1082,129 @@
           return article;
         }
 
-        function renderStoredExpenses() {
+        function clearDynamicRows() {
+          expenseList.querySelectorAll('article[data-dynamic="1"]').forEach((n) => n.remove());
+        }
+
+        function renderExpenses() {
+          clearDynamicRows();
           const sorted = [...addedExpenses].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-          sorted.forEach((record) => {
-            const row = createExpenseRow(record);
-            expenseList.prepend(row);
-          });
+          sorted.forEach((record) => expenseList.prepend(createExpenseRow(record)));
         }
 
         function recalculateTotal() {
-          const addedTotal = addedExpenses.reduce((sum, item) => sum + Number(item.amount), 0);
-          totalSpent = baseTotal + addedTotal;
+          totalSpent = addedExpenses.reduce((sum, item) => sum + Number(item.amount), 0);
           updateSummary();
           updateChart();
         }
 
+        // ── 登录逻辑 ──────────────────────────────────────────────
+        function applySession() {
+          loginOverlay.classList.add("hidden");
+          const emoji = { 爸爸: "👨", 妈妈: "👩", 孩子: "🧒", 其他: "🙂" }[session.member] || "🙂";
+          memberLabel.textContent = `${emoji} ${session.member}`;
+        }
+
+        // ── 旧本地数据迁移 ────────────────────────────────────
+        async function migrateOldData() {
+          let orphans = [];
+          try {
+            const raw = localStorage.getItem(storageKey);
+            if (raw) orphans = JSON.parse(raw);
+          } catch { /* ignore */ }
+
+          const toUpload = orphans.filter((r) => !r.family_code);
+          if (!toUpload.length) {
+            localStorage.removeItem(storageKey);
+            return;
+          }
+
+          console.log(`[迁移] 发现 ${toUpload.length} 条旧数据，正在上传…`);
+          await Promise.all(
+            toUpload.map((r) =>
+              sb.from("expenses").upsert({
+                id: r.id,
+                family_code: session.familyCode,
+                member: session.member,
+                name: r.name,
+                amount: r.amount,
+                category: r.category || "其他",
+                note: r.note || null,
+                created_at: r.timestamp || new Date().toISOString(),
+              })
+            )
+          );
+          localStorage.removeItem(storageKey);
+          console.log("[迁移] 完成，旧缓存已清除");
+        }
+
+        async function initApp() {
+          applySession();
+          await migrateOldData();
+          addedExpenses = await fetchFamilyExpenses();
+          renderExpenses();
+          recalculateTotal();
+          subscribeRealtime();
+        }
+
+        // ── 预算弹窗逻辑 ──────────────────────────────────────
+        function openBudgetModal() {
+          budgetInput.value = budget;
+          budgetOverlay.classList.remove("hidden");
+          budgetOverlay.classList.add("flex");
+          requestAnimationFrame(() => budgetInput.focus());
+        }
+
+        function closeBudgetModal() {
+          budgetOverlay.classList.add("hidden");
+          budgetOverlay.classList.remove("flex");
+        }
+
+        budgetDisplay.addEventListener("click", openBudgetModal);
+        cancelBudgetBtn.addEventListener("click", closeBudgetModal);
+        budgetOverlay.addEventListener("click", (e) => {
+          if (e.target === budgetOverlay) closeBudgetModal();
+        });
+        document.querySelectorAll(".budget-preset").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            budgetInput.value = btn.dataset.val;
+            budgetInput.focus();
+          });
+        });
+        saveBudgetBtn.addEventListener("click", () => {
+          const v = Number(budgetInput.value);
+          if (!v || v <= 0) { budgetInput.focus(); return; }
+          budget = v;
+          localStorage.setItem(BUDGET_KEY, String(v));
+          updateSummary();
+          closeBudgetModal();
+        });
+        budgetInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") saveBudgetBtn.click();
+          if (e.key === "Escape") closeBudgetModal();
+        });
+
+        loginForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const code = document.getElementById("familyCode").value.trim();
+          const member = document.getElementById("memberName").value.trim();
+          if (!code || !member) {
+            loginError.classList.remove("hidden");
+            return;
+          }
+          loginError.classList.add("hidden");
+          session = { familyCode: code, member };
+          saveSession(session);
+          await initApp();
+        });
+
+        logoutBtn.addEventListener("click", () => {
+          unsubscribeRealtime();
+          clearSession();
+          location.reload();
+        });
+
+        // ── 新增消费 ──────────────────────────────────────────────
         fabButton.addEventListener("click", openModal);
         closeModalBtn.addEventListener("click", closeModal);
         overlay.addEventListener("click", closeModal);
@@ -543,7 +1212,7 @@
           if (event.key === "Escape" && !modal.classList.contains("hidden")) closeModal();
         });
 
-        form.addEventListener("submit", (event) => {
+        form.addEventListener("submit", async (event) => {
           event.preventDefault();
 
           const name = nameInput.value.trim();
@@ -559,40 +1228,203 @@
             amount,
             category,
             note,
+            member: session.member,
             timestamp: new Date().toISOString(),
           };
 
-          const newRow = createExpenseRow(record);
-          expenseList.prepend(newRow);
-          addedExpenses.push(record);
-          saveExpenses();
-
+          expenseList.prepend(createExpenseRow(record));
+          addedExpenses.unshift(record);
           recalculateTotal();
           closeModal();
+
+          await saveExpenseToCloud(record);
         });
 
-        clearTodayBtn.addEventListener("click", () => {
-          const todayKey = getDateKey(new Date());
-          const hasTodayData = addedExpenses.some((item) => getDateKey(new Date(item.timestamp)) === todayKey);
-          if (!hasTodayData) return;
-          const shouldClear = window.confirm("确认清空今日新增的消费记录吗？此操作不可撤销。");
-          if (!shouldClear) return;
+        // ── 历史账单 ──────────────────────────────────────────
+        const tabCurrentBtn      = document.getElementById("tabCurrentBtn");
+        const tabHistoryBtn      = document.getElementById("tabHistoryBtn");
+        const currentView        = document.getElementById("currentView");
+        const historyView        = document.getElementById("historyView");
+        const prevMonthBtn       = document.getElementById("prevMonthBtn");
+        const nextMonthBtn       = document.getElementById("nextMonthBtn");
+        const jumpToCurrentBtn   = document.getElementById("jumpToCurrentBtn");
+        const historyMonthTitle  = document.getElementById("historyMonthTitle");
+        const historyLoading     = document.getElementById("historyLoading");
+        const historySummaryCard = document.getElementById("historySummaryCard");
+        const historyTotalAmount = document.getElementById("historyTotalAmount");
+        const historyCountEl     = document.getElementById("historyCountEl");
+        const historyMembersEl   = document.getElementById("historyMembersEl");
+        const historyCategoryBars= document.getElementById("historyCategoryBars");
+        const historyExpenseList = document.getElementById("historyExpenseList");
+        const historyEmpty       = document.getElementById("historyEmpty");
 
-          addedExpenses = addedExpenses.filter((item) => getDateKey(new Date(item.timestamp)) !== todayKey);
-          saveExpenses();
+        const _now = new Date();
+        const NOW_YM = { year: _now.getFullYear(), month: _now.getMonth() + 1 };
+        const MIN_YM = (() => {
+          const d = new Date(_now.getFullYear() - 5, _now.getMonth(), 1);
+          return { year: d.getFullYear(), month: d.getMonth() + 1 };
+        })();
 
-          expenseList.querySelectorAll('article[data-dynamic="1"]').forEach((node) => {
-            const recordId = node.dataset.recordId;
-            const matched = addedExpenses.find((item) => item.id === recordId);
-            if (!matched) node.remove();
+        let historyDate = { ...NOW_YM };
+        let historyLoaded = false; // 首次进入历史 tab 才加载
+
+        function cmpYM(a, b) { return (a.year * 12 + a.month) - (b.year * 12 + b.month); }
+
+        async function fetchMonthExpenses(year, month) {
+          const start = new Date(year, month - 1, 1).toISOString();
+          const end   = new Date(year, month,     1).toISOString();
+          const { data, error } = await sb
+            .from("expenses")
+            .select("*")
+            .eq("family_code", session.familyCode)
+            .gte("created_at", start)
+            .lt("created_at", end)
+            .order("created_at", { ascending: false });
+          if (error) { console.error("历史数据读取失败:", error.message); return []; }
+          return (data || []).map((row) => ({
+            id: row.id, name: row.name, amount: row.amount,
+            category: row.category, note: row.note,
+            member: row.member, timestamp: row.created_at,
+          }));
+        }
+
+        function renderHistoryMonth(year, month, expenses) {
+          historyMonthTitle.textContent = `${year}年${month}月`;
+          prevMonthBtn.disabled = cmpYM({ year, month }, MIN_YM) <= 0;
+          nextMonthBtn.disabled = cmpYM({ year, month }, NOW_YM) >= 0;
+
+          const total = expenses.reduce((s, e) => s + Number(e.amount), 0);
+          historyTotalAmount.textContent = formatMoney(total);
+          historyCountEl.textContent = `共 ${expenses.length} 笔`;
+
+          // 成员分布
+          const mem = {};
+          expenses.forEach((e) => { if (e.member) mem[e.member] = (mem[e.member] || 0) + 1; });
+          historyMembersEl.textContent = Object.entries(mem).map(([m, c]) => `${m} ${c}笔`).join(" · ");
+
+          // 分类进度条
+          const catTotals = {};
+          expenses.forEach((e) => { catTotals[e.category] = (catTotals[e.category] || 0) + Number(e.amount); });
+          const catColors = { 餐饮: "#ff9500", 交通: "#007aff", 购物: "#af52de", 娱乐: "#ff2d55", 其他: "#8e8e93" };
+          const sortedCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+
+          historyCategoryBars.innerHTML = "";
+          sortedCats.forEach(([cat, amt]) => {
+            const pct = total > 0 ? +((amt / total) * 100).toFixed(1) : 0;
+            const color = catColors[cat] || "#8e8e93";
+            const wrap = document.createElement("div");
+            wrap.innerHTML = `
+              <div class="mb-1.5 flex items-center justify-between text-xs">
+                <span class="flex items-center gap-1.5 font-medium text-slate-700">
+                  <span class="inline-block h-2 w-2 rounded-full" style="background:${color}"></span>
+                  ${cat}
+                </span>
+                <span class="text-slate-500">${formatMoney(amt)}<span class="ml-1.5 text-slate-300">${pct}%</span></span>
+              </div>
+              <div class="cat-bar-track"><div class="cat-bar-fill" style="background:${color}"></div></div>`;
+            historyCategoryBars.appendChild(wrap);
+            requestAnimationFrame(() => {
+              wrap.querySelector(".cat-bar-fill").style.width = `${pct}%`;
+            });
           });
 
-          recalculateTotal();
+          // 账单列表
+          historyExpenseList.innerHTML = "";
+          if (expenses.length === 0) {
+            historyEmpty.classList.remove("hidden");
+            historyEmpty.classList.add("flex");
+            historyExpenseList.classList.add("hidden");
+          } else {
+            historyEmpty.classList.add("hidden");
+            historyEmpty.classList.remove("flex");
+            historyExpenseList.classList.remove("hidden");
+            expenses.forEach((record) => historyExpenseList.appendChild(createExpenseRow(record)));
+          }
+        }
+
+        async function loadHistoryMonth(year, month) {
+          historyLoading.classList.remove("hidden");
+          historyLoading.classList.add("flex");
+          historySummaryCard.style.opacity = "0.45";
+
+          const expenses = await fetchMonthExpenses(year, month);
+
+          historyLoading.classList.add("hidden");
+          historyLoading.classList.remove("flex");
+          historySummaryCard.style.opacity = "";
+          renderHistoryMonth(year, month, expenses);
+        }
+
+        // ── Tab 切换 ──────────────────────────────────────────
+        tabCurrentBtn.addEventListener("click", () => {
+          tabCurrentBtn.classList.add("active");
+          tabHistoryBtn.classList.remove("active");
+          currentView.classList.remove("hidden");
+          currentView.classList.add("flex");
+          historyView.classList.add("hidden");
+          historyView.classList.remove("flex");
+          fabButton.classList.remove("hidden");
         });
 
-        addedExpenses = loadExpenses();
-        renderStoredExpenses();
-        recalculateTotal();
+        tabHistoryBtn.addEventListener("click", () => {
+          tabHistoryBtn.classList.add("active");
+          tabCurrentBtn.classList.remove("active");
+          historyView.classList.remove("hidden");
+          historyView.classList.add("flex");
+          currentView.classList.add("hidden");
+          currentView.classList.remove("flex");
+          fabButton.classList.add("hidden");
+          if (!historyLoaded) {
+            historyLoaded = true;
+            loadHistoryMonth(historyDate.year, historyDate.month);
+          }
+        });
+
+        // ── 月份导航 ──────────────────────────────────────────
+        prevMonthBtn.addEventListener("click", () => {
+          if (historyDate.month === 1) { historyDate.month = 12; historyDate.year--; }
+          else { historyDate.month--; }
+          loadHistoryMonth(historyDate.year, historyDate.month);
+        });
+
+        nextMonthBtn.addEventListener("click", () => {
+          if (historyDate.month === 12) { historyDate.month = 1; historyDate.year++; }
+          else { historyDate.month++; }
+          loadHistoryMonth(historyDate.year, historyDate.month);
+        });
+
+        jumpToCurrentBtn.addEventListener("click", () => {
+          historyDate = { ...NOW_YM };
+          loadHistoryMonth(historyDate.year, historyDate.month);
+        });
+
+        // ── 清空今日数据 ──────────────────────────────────────────
+        clearTodayBtn.addEventListener("click", async () => {
+          const todayKey = getDateKey(new Date());
+          const todayItems = addedExpenses.filter(
+            (item) => item.member === session.member && getDateKey(new Date(item.timestamp)) === todayKey
+          );
+          if (!todayItems.length) return;
+          const ok = window.confirm(`确认清空今日由"${session.member}"录入的 ${todayItems.length} 条记录吗？此操作不可撤销。`);
+          if (!ok) return;
+
+          const todayIds = new Set(todayItems.map((i) => i.id));
+          addedExpenses = addedExpenses.filter((i) => !todayIds.has(i.id));
+          expenseList.querySelectorAll('article[data-dynamic="1"]').forEach((node) => {
+            if (todayIds.has(node.dataset.recordId)) node.remove();
+          });
+          recalculateTotal();
+
+          await Promise.all([...todayIds].map((id) => deleteExpenseFromCloud(id)));
+        });
+
+        // ── 启动 ──────────────────────────────────────────────────
+        session = loadSession();
+        if (session) {
+          initApp();
+        } else {
+          loginOverlay.classList.remove("hidden");
+        }
 
         function isStandaloneMode() {
           return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
