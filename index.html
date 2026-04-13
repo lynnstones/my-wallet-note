@@ -392,6 +392,32 @@
       .month-nav-btn:active { transform: scale(0.90); }
       .month-nav-btn:disabled { opacity: 0.28; cursor: not-allowed; transform: none; }
 
+      /* ── 成员查询状态提示 ───────────────────────────────── */
+      .member-hint {
+        font-size: 0.6875rem;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        transition: opacity 0.2s;
+      }
+      .member-hint.loading {
+        color: rgba(96,165,250,0.75);
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+      }
+      .member-hint.loading::before {
+        content: "";
+        display: inline-block;
+        width: 0.625rem; height: 0.625rem;
+        border: 1.5px solid rgba(96,165,250,0.3);
+        border-top-color: #60a5fa;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        flex-shrink: 0;
+      }
+      .member-hint.found   { color: #4ade80; }
+      .member-hint.notfound { color: rgba(241,245,249,0.30); }
+
       /* ── 退出按钮 ────────────────────────────────────────── */
       .logout-icon-btn {
         display: inline-flex;
@@ -462,7 +488,11 @@
 
           <!-- 我的昵称 -->
           <div class="login-field-block" id="memberBlock">
-            <label class="login-label">我的昵称</label>
+            <div class="flex items-center justify-between">
+              <label class="login-label">我的昵称</label>
+              <!-- 云端查询状态提示 -->
+              <span id="memberHint" class="member-hint hidden"></span>
+            </div>
             <div class="custom-select-wrap" id="memberSelectWrap">
               <button type="button" id="memberSelectBtn" class="custom-select-btn">
                 <span id="memberSelectText" class="custom-select-placeholder">请选择或创建昵称</span>
@@ -1311,9 +1341,45 @@
           console.log("[迁移] 完成，旧缓存已清除");
         }
 
+        // ── 登录后同步全部成员到本地缓存 ─────────────────────
+        // 解决"换设备/清缓存后昵称列表为空"问题：
+        // 每次登录成功，把该家庭在 Supabase 里曾出现过的所有成员写进 localStorage。
+        async function syncFamilyMembers() {
+          try {
+            const { data, error } = await sb
+              .from("expenses")
+              .select("member")
+              .eq("family_code", session.familyCode)
+              .limit(500);
+
+            if (error || !data || data.length === 0) return;
+
+            // 按出现频次排序，最常用的排前面
+            const freq = {};
+            data.forEach((r) => { if (r.member) freq[r.member] = (freq[r.member] || 0) + 1; });
+            const allMembers = Object.entries(freq)
+              .sort((a, b) => b[1] - a[1])
+              .map(([m]) => m);
+
+            const local = loadFamiliesData();
+            if (!local.families[session.familyCode]) {
+              local.families[session.familyCode] = { lastMember: session.member, members: [] };
+            }
+            const fam = local.families[session.familyCode];
+            allMembers.forEach((m) => { if (!fam.members.includes(m)) fam.members.push(m); });
+            fam.lastMember = session.member;
+            local.lastFamily = session.familyCode;
+            saveFamiliesData(local);
+            console.log(`[sync] 同步了 ${allMembers.length} 位家庭成员到本地缓存`);
+          } catch (e) {
+            console.warn("[syncFamilyMembers]", e?.message || e);
+          }
+        }
+
         async function initApp() {
           applySession();
           await migrateOldData();
+          syncFamilyMembers(); // 非阻塞，后台同步成员列表
           addedExpenses = await fetchFamilyExpenses();
           renderExpenses();
           recalculateTotal();
@@ -1524,8 +1590,19 @@
 
         // ── 家庭名称输入框智能匹配 ──────────────────────────────
         // 场景1：同设备，localStorage 有记录 → 立即响应
-        // 场景2：换设备/清缓存，localStorage 空  → 500ms 后查 Supabase
+        // 场景2：换设备/清缓存，localStorage 空  → 500ms 防抖查 Supabase
         let _memberLookupTimer = null;
+        const memberHint = document.getElementById("memberHint");
+
+        function setMemberHint(state, text) {
+          memberHint.className = "member-hint " + state;
+          memberHint.textContent = text;
+          if (state === "hidden" || !text) {
+            memberHint.classList.add("hidden");
+          } else {
+            memberHint.classList.remove("hidden");
+          }
+        }
 
         familyNewInput.addEventListener("input", () => {
           const typed = familyNewInput.value.trim();
@@ -1533,39 +1610,57 @@
           // ① 本地命中 — 立即展示昵称下拉
           if (typed && familiesData.families[typed]) {
             clearTimeout(_memberLookupTimer);
+            setMemberHint("found", "✓ 已找到家庭");
             selectFamily(typed);
             return;
           }
 
-          // 未命中 — 成员区重置为文本输入
+          // 未命中 — 成员区重置为文本输入，清除提示
           currentFamily = "";
           currentMember = "";
           switchMemberMode("text");
           memberNewInput.value = "";
+          setMemberHint("hidden", "");
 
-          // ② 无内容 — 不请求
+          // ② 无内容 — 停止
           if (!typed) {
             clearTimeout(_memberLookupTimer);
             return;
           }
 
-          // ③ 防抖 500ms 后查询 Supabase，适用于换设备的情况
+          // ③ 防抖 600ms 后查询 Supabase（换设备/清缓存场景）
           clearTimeout(_memberLookupTimer);
+          setMemberHint("loading", "联网查询中…");
           _memberLookupTimer = setTimeout(async () => {
+            // 如果用户又改了输入，放弃本次结果
+            if (familyNewInput.value.trim() !== typed) return;
+
             try {
-              const { data } = await sb
+              const { data, error } = await sb
                 .from("expenses")
                 .select("member")
                 .eq("family_code", typed)
-                .limit(200);
+                .limit(500);
 
-              if (!data || data.length === 0) return;
+              if (error) throw error;
+              if (!data || data.length === 0) {
+                setMemberHint("notfound", "未找到此家庭，将新建");
+                return;
+              }
 
-              // 去重，过滤空值
-              const cloudMembers = [...new Set(data.map((r) => r.member).filter(Boolean))];
-              if (cloudMembers.length === 0) return;
+              // 去重，过滤空值，按出现频次排序
+              const freq = {};
+              data.forEach((r) => { if (r.member) freq[r.member] = (freq[r.member] || 0) + 1; });
+              const cloudMembers = Object.entries(freq)
+                .sort((a, b) => b[1] - a[1])
+                .map(([m]) => m);
 
-              // 合并到本地缓存（不覆盖已有顺序）
+              if (cloudMembers.length === 0) {
+                setMemberHint("notfound", "未找到此家庭，将新建");
+                return;
+              }
+
+              // 合并到本地缓存并立即持久化
               if (!familiesData.families[typed]) {
                 familiesData.families[typed] = { lastMember: cloudMembers[0], members: [] };
               }
@@ -1574,6 +1669,8 @@
                   familiesData.families[typed].members.push(m);
                 }
               });
+              familiesData.lastFamily = typed;
+              saveFamiliesData(familiesData); // ← 立即写入 localStorage
 
               // 展示昵称下拉
               currentFamily = typed;
@@ -1581,13 +1678,18 @@
               const lastUsed = familiesData.families[typed].lastMember;
               if (lastUsed && familiesData.families[typed].members.includes(lastUsed)) {
                 selectMember(lastUsed);
+                setMemberHint("found", `✓ 找到 ${cloudMembers.length} 位成员`);
               } else {
                 currentMember = "";
                 memberSelectText.className = "custom-select-placeholder";
                 memberSelectText.textContent = "请选择昵称";
+                setMemberHint("found", `✓ 找到 ${cloudMembers.length} 位成员`);
               }
-            } catch (_) { /* 网络异常静默忽略 */ }
-          }, 500);
+            } catch (err) {
+              console.warn("[家庭查询]", err?.message || err);
+              setMemberHint("notfound", "查询失败，请检查网络");
+            }
+          }, 600);
         });
 
         // ── 初始化登录 UI ──
