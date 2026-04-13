@@ -1428,20 +1428,30 @@
         // 每次登录成功，把该家庭在 Supabase 里曾出现过的所有成员写进 localStorage。
         async function syncFamilyMembers() {
           try {
-            const { data, error } = await sb
-              .from("expenses")
+            let allMembers = [];
+
+            // ① 优先查 families 注册表（最权威、最快）
+            const { data: famData, error: famErr } = await sb
+              .from("families")
               .select("member")
-              .eq("family_code", session.familyCode)
-              .limit(500);
+              .eq("family_code", session.familyCode);
 
-            if (error || !data || data.length === 0) return;
+            if (!famErr && famData && famData.length > 0) {
+              allMembers = [...new Set(famData.map((r) => r.member).filter(Boolean))];
+            } else {
+              // ② 降级：从 expenses 表按频次推断（兼容旧账号）
+              const { data: expData, error: expErr } = await sb
+                .from("expenses")
+                .select("member")
+                .eq("family_code", session.familyCode)
+                .limit(500);
+              if (expErr || !expData || expData.length === 0) return;
+              const freq = {};
+              expData.forEach((r) => { if (r.member) freq[r.member] = (freq[r.member] || 0) + 1; });
+              allMembers = Object.entries(freq).sort((a, b) => b[1] - a[1]).map(([m]) => m);
+            }
 
-            // 按出现频次排序，最常用的排前面
-            const freq = {};
-            data.forEach((r) => { if (r.member) freq[r.member] = (freq[r.member] || 0) + 1; });
-            const allMembers = Object.entries(freq)
-              .sort((a, b) => b[1] - a[1])
-              .map(([m]) => m);
+            if (allMembers.length === 0) return;
 
             const local = loadFamiliesData();
             if (!local.families[session.familyCode]) {
@@ -1730,31 +1740,37 @@
           }
 
           // ③ 防抖 600ms 后查询 Supabase（换设备/清缓存场景）
+          // 优先查 families 表（注册表），降级查 expenses 表
           clearTimeout(_memberLookupTimer);
           setMemberHint("loading", "联网查询中…");
           _memberLookupTimer = setTimeout(async () => {
-            // 如果用户又改了输入，放弃本次结果
             if (familyNewInput.value.trim() !== typed) return;
 
             try {
-              const { data, error } = await sb
-                .from("expenses")
+              let cloudMembers = [];
+
+              // ── 优先：families 注册表（不依赖账单数据）──
+              const { data: famData, error: famErr } = await sb
+                .from("families")
                 .select("member")
-                .eq("family_code", typed)
-                .limit(500);
+                .eq("family_code", typed);
 
-              if (error) throw error;
-              if (!data || data.length === 0) {
-                setMemberHint("notfound", "未找到此家庭，将新建");
-                return;
+              if (!famErr && famData && famData.length > 0) {
+                cloudMembers = [...new Set(famData.map((r) => r.member).filter(Boolean))];
+              } else {
+                // ── 降级：expenses 表（兼容旧账号）──
+                const { data: expData, error: expErr } = await sb
+                  .from("expenses")
+                  .select("member")
+                  .eq("family_code", typed)
+                  .limit(500);
+                if (expErr) throw expErr;
+                if (expData && expData.length > 0) {
+                  const freq = {};
+                  expData.forEach((r) => { if (r.member) freq[r.member] = (freq[r.member] || 0) + 1; });
+                  cloudMembers = Object.entries(freq).sort((a, b) => b[1] - a[1]).map(([m]) => m);
+                }
               }
-
-              // 去重，过滤空值，按出现频次排序
-              const freq = {};
-              data.forEach((r) => { if (r.member) freq[r.member] = (freq[r.member] || 0) + 1; });
-              const cloudMembers = Object.entries(freq)
-                .sort((a, b) => b[1] - a[1])
-                .map(([m]) => m);
 
               if (cloudMembers.length === 0) {
                 setMemberHint("notfound", "未找到此家庭，将新建");
@@ -1766,12 +1782,11 @@
                 familiesData.families[typed] = { lastMember: cloudMembers[0], members: [] };
               }
               cloudMembers.forEach((m) => {
-                if (!familiesData.families[typed].members.includes(m)) {
+                if (!familiesData.families[typed].members.includes(m))
                   familiesData.families[typed].members.push(m);
-                }
               });
               familiesData.lastFamily = typed;
-              saveFamiliesData(familiesData); // ← 立即写入 localStorage
+              saveFamiliesData(familiesData);
 
               // 展示昵称下拉
               currentFamily = typed;
@@ -1779,13 +1794,12 @@
               const lastUsed = familiesData.families[typed].lastMember;
               if (lastUsed && familiesData.families[typed].members.includes(lastUsed)) {
                 selectMember(lastUsed);
-                setMemberHint("found", `✓ 找到 ${cloudMembers.length} 位成员`);
               } else {
                 currentMember = "";
                 memberSelectText.className = "custom-select-placeholder";
                 memberSelectText.textContent = "请选择昵称";
-                setMemberHint("found", `✓ 找到 ${cloudMembers.length} 位成员`);
               }
+              setMemberHint("found", `✓ 找到 ${cloudMembers.length} 位成员`);
             } catch (err) {
               console.warn("[家庭查询]", err?.message || err);
               setMemberHint("notfound", "查询失败，请检查网络");
@@ -1793,26 +1807,71 @@
           }, 600);
         });
 
+        // ── 从云端同步所有家庭/成员注册表（登录屏加载时调用）──
+        // 从 Supabase families 表读取所有设备注册的 family_code + member
+        // 合并到本地 familiesData，再刷新下拉列表，实现多端发现
+        async function syncAllFamiliesFromCloud() {
+          try {
+            const { data, error } = await sb
+              .from("families")
+              .select("family_code, member");
+
+            if (error || !data || data.length === 0) return;
+
+            let changed = false;
+            data.forEach(({ family_code, member }) => {
+              if (!family_code || !member) return;
+              if (!familiesData.families[family_code]) {
+                familiesData.families[family_code] = { lastMember: member, members: [] };
+                changed = true;
+              }
+              const fam = familiesData.families[family_code];
+              if (!fam.members.includes(member)) {
+                fam.members.push(member);
+                changed = true;
+              }
+            });
+            if (!changed) return;
+            saveFamiliesData(familiesData);
+
+            // 刷新 UI：如果目前是空文本模式 → 切换到下拉
+            const names = Object.keys(familiesData.families);
+            if (familyMode === "text" && !familyNewInput.value.trim() && names.length > 0) {
+              switchFamilyMode("dropdown");
+              const lastFam = familiesData.lastFamily && familiesData.families[familiesData.lastFamily]
+                ? familiesData.lastFamily : names[0];
+              selectFamily(lastFam);
+            } else if (familyMode === "dropdown") {
+              // 已在下拉模式 → 补充新选项
+              renderFamilyDropdown();
+            }
+          } catch (e) {
+            console.warn("[syncAllFamilies]", e?.message || e);
+          }
+        }
+
         // ── 初始化登录 UI ──
         function initLoginUI() {
           familiesData = loadFamiliesData();
           const names = Object.keys(familiesData.families || {});
 
           if (names.length === 0) {
-            // 首次使用：直接文本输入
+            // 首次使用：先显示文本输入，同时后台拉云端注册表
             switchFamilyMode("text");
             switchMemberMode("text");
             familyNewInput.value = "";
             memberNewInput.value = "";
           } else {
-            // 有历史数据：恢复下拉
+            // 有本地历史：立即恢复下拉
             switchFamilyMode("dropdown");
             const lastFam = familiesData.lastFamily && familiesData.families[familiesData.lastFamily]
               ? familiesData.lastFamily : names[0];
             selectFamily(lastFam);
           }
-          // 重置错误提示
           loginError.classList.add("hidden");
+
+          // 后台同步云端注册表（非阻塞），完成后自动更新下拉
+          syncAllFamiliesFromCloud();
         }
 
         // ── 表单提交 ──
@@ -1838,6 +1897,14 @@
           }
           familiesData.lastFamily = familyName;
           saveFamiliesData(familiesData);
+
+          // 注册到云端 families 表（非阻塞），让其他设备能发现这个家庭/成员
+          sb.from("families")
+            .upsert(
+              { family_code: familyName, member: memberName, updated_at: new Date().toISOString() },
+              { onConflict: "family_code,member" }
+            )
+            .then(({ error }) => { if (error) console.warn("[families register]", error.message); });
 
           session = { familyCode: familyName, member: memberName };
           saveSession(session);
