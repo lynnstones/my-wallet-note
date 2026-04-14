@@ -429,6 +429,33 @@
         transform: scale(0.90);
       }
 
+      /* ── 登录屏家庭列表同步状态 ─────────────────────────── */
+      .login-sync-status {
+        font-size: 0.7rem;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        transition: opacity 0.3s;
+      }
+      .login-sync-status.hidden { display: none; }
+      .login-sync-status.loading {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        color: rgba(148, 163, 184, 0.7);
+      }
+      .login-sync-status.loading::before {
+        content: "";
+        display: inline-block;
+        width: 0.6rem;
+        height: 0.6rem;
+        border: 1.5px solid rgba(148,163,184,0.4);
+        border-top-color: rgba(148,163,184,0.9);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      .login-sync-status.found { color: #4ade80; }
+      .login-sync-status.notfound { color: rgba(241,245,249,0.35); }
+
       /* ── 同步 Toast 提示 ────────────────────────────────── */
       .sync-toast {
         position: fixed;
@@ -484,7 +511,10 @@
 
           <!-- 家庭名称 -->
           <div class="login-field-block">
-            <label class="login-label">家庭名称</label>
+                <div class="flex items-center justify-between">
+                  <label class="login-label">家庭名称</label>
+                  <span id="loginSyncStatus" class="login-sync-status hidden"></span>
+                </div>
             <div class="custom-select-wrap" id="familySelectWrap">
               <!-- 下拉触发按钮 -->
               <button type="button" id="familySelectBtn" class="custom-select-btn">
@@ -1486,9 +1516,35 @@
           console.log("[迁移] 完成，旧缓存已清除");
         }
 
+        // ── 将本地所有家庭/成员批量注册到 Supabase families 表 ────
+        // 解决"已有家庭在 localStorage 但从未同步到云端"问题：
+        // 每次登录后，把本地 familiesData 里记录的所有 (family_code, member)
+        // 批量 upsert 到 families 表，让其他设备能通过云端发现这些家庭。
+        async function registerAllLocalFamilies() {
+          try {
+            const local = loadFamiliesData();
+            const rows = [];
+            Object.entries(local.families || {}).forEach(([family_code, fam]) => {
+              const members = fam.members && fam.members.length ? fam.members
+                : fam.lastMember ? [fam.lastMember] : [];
+              members.forEach((member) => rows.push({
+                family_code,
+                member,
+                updated_at: new Date().toISOString(),
+              }));
+            });
+            if (rows.length === 0) return;
+            const { error } = await sb
+              .from("families")
+              .upsert(rows, { onConflict: "family_code,member" });
+            if (error) console.warn("[registerAllLocal]", error.message);
+            else console.log(`[sync] 已注册 ${rows.length} 条本地家庭/成员到云端 families 表`);
+          } catch (e) {
+            console.warn("[registerAllLocal]", e?.message || e);
+          }
+        }
+
         // ── 登录后同步全部成员到本地缓存 ─────────────────────
-        // 解决"换设备/清缓存后昵称列表为空"问题：
-        // 每次登录成功，把该家庭在 Supabase 里曾出现过的所有成员写进 localStorage。
         async function syncFamilyMembers() {
           try {
             let allMembers = [];
@@ -1543,7 +1599,8 @@
             recalculateTotal();
           }
 
-          syncFamilyMembers(); // 非阻塞，后台同步成员列表
+          registerAllLocalFamilies(); // 非阻塞：把本地所有家庭/成员推送到云端 families 表
+          syncFamilyMembers();         // 非阻塞：从云端同步当前家庭的最新成员列表
 
           // ② 补传上次失败的离线账单（先于读取，避免数据不一致）
           await flushPendingUploads();
@@ -1877,15 +1934,41 @@
         // 从 Supabase families 表读取所有设备注册的 family_code + member
         // 合并到本地 familiesData，再刷新下拉列表，实现多端发现
         async function syncAllFamiliesFromCloud() {
+          const hint = document.getElementById("loginSyncStatus");
+          function setHint(state, text) {
+            if (!hint) return;
+            hint.className = "login-sync-status " + state;
+            hint.textContent = text;
+          }
+
+          setHint("loading", "正在从云端同步家庭列表…");
           try {
-            const { data, error } = await sb
+            let rows = null;
+
+            // ① 优先查 families 注册表
+            const { data: famData, error: famErr } = await sb
               .from("families")
               .select("family_code, member");
 
-            if (error || !data || data.length === 0) return;
+            if (!famErr && famData && famData.length > 0) {
+              rows = famData;
+            } else {
+              // ② 降级：从 expenses 表推断（兼容未创建 families 表 / 历史账号）
+              const { data: expData, error: expErr } = await sb
+                .from("expenses")
+                .select("family_code, member");
+              if (!expErr && expData && expData.length > 0) {
+                rows = expData;
+              }
+            }
+
+            if (!rows || rows.length === 0) {
+              setHint("notfound", "云端暂无家庭数据，请直接输入");
+              return;
+            }
 
             let changed = false;
-            data.forEach(({ family_code, member }) => {
+            rows.forEach(({ family_code, member }) => {
               if (!family_code || !member) return;
               if (!familiesData.families[family_code]) {
                 familiesData.families[family_code] = { lastMember: member, members: [] };
@@ -1897,22 +1980,25 @@
                 changed = true;
               }
             });
-            if (!changed) return;
-            saveFamiliesData(familiesData);
+            if (changed) saveFamiliesData(familiesData);
 
-            // 刷新 UI：如果目前是空文本模式 → 切换到下拉
             const names = Object.keys(familiesData.families);
+            const count = names.length;
+            setHint("found", `✓ 已同步 ${count} 个家庭`);
+            setTimeout(() => setHint("hidden", ""), 3000);
+
+            // 刷新下拉 UI
             if (familyMode === "text" && !familyNewInput.value.trim() && names.length > 0) {
               switchFamilyMode("dropdown");
               const lastFam = familiesData.lastFamily && familiesData.families[familiesData.lastFamily]
                 ? familiesData.lastFamily : names[0];
               selectFamily(lastFam);
             } else if (familyMode === "dropdown") {
-              // 已在下拉模式 → 补充新选项
               renderFamilyDropdown();
             }
           } catch (e) {
             console.warn("[syncAllFamilies]", e?.message || e);
+            setHint("notfound", "连接失败，请检查网络");
           }
         }
 
