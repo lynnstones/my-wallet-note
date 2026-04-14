@@ -532,7 +532,7 @@
         </form>
 
         <p class="mt-5 text-center text-[11px]" style="color:rgba(241,245,249,0.32)">
-          同一暗号下的所有人共享一个账本
+          同一家庭名称下的所有人共享一个账本
         </p>
       </div>
     </div>
@@ -994,6 +994,23 @@
           } catch (e) { console.warn("[history-cache]", e?.message); }
         }
 
+        // ── 离线待上传队列 ──────────────────────────────────────────
+        // 写入 Supabase 失败时暂存本地，下次启动自动重试
+        const PENDING_UPLOADS_KEY = "wallet_pending_uploads_v1";
+
+        function loadPendingUploads() {
+          try {
+            const raw = localStorage.getItem(PENDING_UPLOADS_KEY);
+            return raw ? JSON.parse(raw) : [];
+          } catch { return []; }
+        }
+
+        function savePendingUploads(queue) {
+          try {
+            localStorage.setItem(PENDING_UPLOADS_KEY, JSON.stringify(queue));
+          } catch (e) { console.warn("[pending-queue]", e?.message); }
+        }
+
         // ── 轻量 Toast 通知 ─────────────────────────────────────────
         let _toastEl = null, _toastTimer = null;
         function showToast(msg) {
@@ -1195,7 +1212,7 @@
 
         // ── Supabase I/O ──────────────────────────────────────────
         async function saveExpenseToCloud(record) {
-          const { error } = await sb.from("expenses").insert({
+          const payload = {
             id: record.id,
             family_code: session.familyCode,
             member: session.member,
@@ -1204,8 +1221,52 @@
             category: record.category,
             note: record.note || null,
             created_at: record.timestamp,
-          });
-          if (error) console.error("Supabase 写入失败:", error.message);
+          };
+          const { error } = await sb.from("expenses").insert(payload);
+          if (error) {
+            console.error("[upload] Supabase 写入失败:", error.code, error.message);
+            // 加入离线队列，下次启动自动重试
+            const queue = loadPendingUploads();
+            if (!queue.some((r) => r.id === record.id)) {
+              queue.push({ ...record, _familyCode: session.familyCode, _member: session.member });
+              savePendingUploads(queue);
+            }
+            showToast("⚠️ 网络异常，账单已存本地稍后同步");
+          }
+        }
+
+        // ── 离线队列重试：启动时自动补传失败的账单 ─────────────────
+        async function flushPendingUploads() {
+          const queue = loadPendingUploads();
+          if (queue.length === 0) return;
+
+          console.log(`[pending] 检测到 ${queue.length} 条未同步账单，开始补传…`);
+          const failed = [];
+          for (const record of queue) {
+            const { error } = await sb.from("expenses").insert({
+              id: record.id,
+              family_code: record._familyCode || session.familyCode,
+              member: record._member || session.member,
+              name: record.name,
+              amount: record.amount,
+              category: record.category,
+              note: record.note || null,
+              created_at: record.timestamp,
+            });
+            if (error && error.code !== "23505") {
+              // 23505 = unique_violation（已上传过，忽略）
+              failed.push(record);
+            }
+          }
+          savePendingUploads(failed);
+          const uploaded = queue.length - failed.length;
+          if (uploaded > 0) {
+            console.log(`[pending] 补传成功 ${uploaded} 条`);
+            showToast(`已补传 ${uploaded} 条离线账单 ✓`);
+          }
+          if (failed.length > 0) {
+            console.warn(`[pending] 仍有 ${failed.length} 条补传失败，下次重试`);
+          }
         }
 
         async function fetchFamilyExpenses() {
@@ -1215,8 +1276,10 @@
             .eq("family_code", session.familyCode)
             .order("created_at", { ascending: false });
           if (error) {
-            console.error("Supabase 读取失败:", error.message);
-            return [];
+            console.error("[fetch] Supabase 读取失败:", error.code, error.message);
+            showToast("⚠️ 云端读取失败，显示本地缓存");
+            // 返回本地缓存兜底，不让界面空白
+            return loadExpenseCache(session.familyCode);
           }
           return (data || []).map((row) => ({
             id: row.id,
@@ -1482,12 +1545,15 @@
 
           syncFamilyMembers(); // 非阻塞，后台同步成员列表
 
-          // ② 拉取云端最新数据，对比后更新
+          // ② 补传上次失败的离线账单（先于读取，避免数据不一致）
+          await flushPendingUploads();
+
+          // ③ 拉取云端最新数据，对比后更新
           const fresh = await fetchFamilyExpenses();
           const freshSig  = fresh.map((e) => e.id).join(",");
           const cachedSig = cached.map((e) => e.id).join(",");
           addedExpenses = fresh;
-          saveExpenseCache(session.familyCode, fresh); // 存入本地缓存，供下次快速启动
+          saveExpenseCache(session.familyCode, fresh);
           renderExpenses();
           recalculateTotal();
           if (cached.length > 0 && freshSig !== cachedSig) {
