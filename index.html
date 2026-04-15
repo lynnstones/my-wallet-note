@@ -429,10 +429,47 @@
         transform: scale(0.90);
       }
 
-      /* ── 预算进度条 ──────────────────────────────────────── */
-      .budget-bar { background: #007aff; }
-      .budget-bar.warn  { background: #f97316; }
-      .budget-bar.over  { background: #ef4444; }
+      /* ── 预算进度条（平滑渐变过渡） ────────────────────────── */
+      .budget-bar {
+        background: #007aff;
+        transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1),
+                    background-color 0.55s ease;
+      }
+      .budget-bar.warn { background: #f97316; }
+      .budget-bar.over { background: #ef4444; }
+
+      /* ── 支出洞察卡片 ────────────────────────────────────── */
+      .insight-glass {
+        background: linear-gradient(140deg, rgba(255,255,255,0.84) 0%, rgba(245,247,255,0.76) 100%);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        box-shadow: 0 2px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+        border: 1px solid rgba(255,255,255,0.7);
+      }
+      .insight-badge {
+        display: inline-block;
+        font-size: 0.68rem;
+        font-weight: 600;
+        padding: 0.2rem 0.65rem;
+        border-radius: 99px;
+        background: rgba(15,23,42,0.07);
+        color: rgba(15,23,42,0.45);
+      }
+      .insight-badge.good {
+        background: rgba(16,185,129,0.1);
+        color: #059669;
+      }
+      .insight-badge.warn {
+        background: rgba(239,68,68,0.1);
+        color: #dc2626;
+      }
+
+      /* ── 卡片淡入上移入场动画 ───────────────────────────── */
+      @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      .fade-in-up { animation: fadeInUp 0.4s cubic-bezier(0.4,0,0.2,1) both; }
 
       /* ── 本周折线图容器 ──────────────────────────────────── */
       .weekly-chart-wrap {
@@ -637,16 +674,9 @@
           <p class="mt-2 text-sm text-slate-500">清晰地看到你的每一笔花费。</p>
 
           <div class="mt-6 rounded-3xl bg-white/75 p-5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
-            <div class="flex items-end justify-between">
-              <div>
-                <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">本月已支出</p>
-                <p id="monthlyTotal" class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">¥ 0</p>
-              </div>
-              <!-- 同环比徽章 (动态) -->
-              <div id="momBadge" class="hidden rounded-2xl px-3 py-2 text-right">
-                <p class="text-[11px] text-slate-500">较上月</p>
-                <p id="momPct" class="text-sm font-medium">-</p>
-              </div>
+            <div>
+              <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">本月已支出</p>
+              <p id="monthlyTotal" class="mt-2 text-3xl font-semibold tracking-tight text-slate-900 tabular-nums">¥ 0</p>
             </div>
             <div class="mt-4 h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
             <!-- 预算进度条 -->
@@ -660,6 +690,47 @@
               </div>
               <div class="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
                 <div id="budgetProgressBar" class="budget-bar h-full rounded-full transition-all duration-500" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- 支出洞察：同环比对比组件 -->
+        <section id="insightSection" class="hidden fade-in-up" aria-label="支出洞察">
+          <div class="insight-glass rounded-3xl p-5">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-semibold tracking-tight text-slate-900">支出洞察</h2>
+              <span id="insightBadge" class="insight-badge">首月记录</span>
+            </div>
+            <div class="mt-4 flex items-center gap-2">
+              <div class="flex-1 min-w-0">
+                <p class="text-[11px] text-slate-400">本月</p>
+                <p id="insightCurrent" class="mt-0.5 text-base font-semibold text-slate-900 tabular-nums truncate">¥ 0</p>
+              </div>
+              <div class="flex flex-col items-center gap-0.5 shrink-0 px-2">
+                <p id="insightDelta" class="text-2xl font-bold tracking-tight text-slate-400 tabular-nums">-</p>
+                <p id="insightDeltaLabel" class="text-[10px] font-medium text-slate-400">暂无数据</p>
+              </div>
+              <div class="flex-1 min-w-0 text-right">
+                <p class="text-[11px] text-slate-400">上月</p>
+                <p id="insightLast" class="mt-0.5 text-base font-semibold text-slate-400 tabular-nums truncate">¥ 0</p>
+              </div>
+            </div>
+            <!-- 对比进度条 -->
+            <div class="mt-4 space-y-2">
+              <div class="flex items-center gap-2">
+                <span class="w-7 shrink-0 text-[10px] text-slate-400">本月</span>
+                <div class="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div id="insightBarCurrent" class="h-full rounded-full bg-accent transition-all duration-700 ease-out" style="width:0%"></div>
+                </div>
+                <span id="insightCurrentPct" class="w-7 shrink-0 text-right text-[10px] text-slate-400"></span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="w-7 shrink-0 text-[10px] text-slate-400">上月</span>
+                <div class="flex-1 h-1.5 rounded-full bg-slate-100 overflow-hidden">
+                  <div id="insightBarLast" class="h-full rounded-full bg-slate-300 transition-all duration-700 ease-out" style="width:0%"></div>
+                </div>
+                <span id="insightLastPct" class="w-7 shrink-0 text-right text-[10px] text-slate-400"></span>
               </div>
             </div>
           </div>
@@ -765,6 +836,16 @@
 
       <!-- ── 历史账单视图 ──────────────────────────────────── -->
       <section id="historyView" class="hidden flex-col gap-5 flex-1">
+
+        <!-- 本周趋势（历史页顶部快速参考） -->
+        <div>
+          <h2 class="mb-3 text-sm font-semibold tracking-tight text-slate-900">本周趋势</h2>
+          <div class="rounded-3xl bg-white/75 p-4 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+            <div class="weekly-chart-wrap">
+              <canvas id="weeklyChartHistory"></canvas>
+            </div>
+          </div>
+        </div>
 
         <!-- 月份导航 -->
         <div class="flex items-center justify-between rounded-2xl bg-white/75 px-4 py-3.5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
@@ -1192,36 +1273,13 @@
 
         // ── 本周折线图 ────────────────────────────────────────────
         let weeklyChartInst = null;
+        let weeklyChartHistInst = null;
 
-        function updateWeeklyChart() {
-          const now = new Date();
-          const dow = now.getDay(); // 0=Sun
-          const startOfWeek = new Date(now);
-          startOfWeek.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
-          startOfWeek.setHours(0, 0, 0, 0);
-
-          const DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-          const dayKeys = [], values = new Array(7).fill(0);
-          for (let i = 0; i < 7; i++) {
-            const d = new Date(startOfWeek);
-            d.setDate(startOfWeek.getDate() + i);
-            dayKeys.push(getDateKey(d));
-          }
-          addedExpenses.forEach((item) => {
-            const idx = dayKeys.indexOf(getDateKey(new Date(item.timestamp)));
-            if (idx !== -1) values[idx] += Number(item.amount);
-          });
-
-          const canvas = document.getElementById("weeklyChart");
-          if (weeklyChartInst) {
-            weeklyChartInst.data.datasets[0].data = values;
-            weeklyChartInst.update("active");
-            return;
-          }
-          weeklyChartInst = new Chart(canvas, {
+        function buildWeeklyChartConfig(values, labels) {
+          return {
             type: "line",
             data: {
-              labels: DAY_LABELS,
+              labels,
               datasets: [{
                 data: values,
                 borderColor: "#007aff",
@@ -1239,6 +1297,7 @@
             options: {
               responsive: true,
               maintainAspectRatio: false,
+              animation: { duration: 700, easing: "easeInOutQuart" },
               plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -1249,9 +1308,7 @@
                   borderWidth: 1,
                   padding: 10,
                   cornerRadius: 12,
-                  callbacks: {
-                    label: (ctx) => ` ¥ ${ctx.parsed.y.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}`,
-                  },
+                  callbacks: { label: (ctx) => ` ¥ ${ctx.parsed.y.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}` },
                 },
               },
               scales: {
@@ -1267,40 +1324,141 @@
                 },
               },
             },
-          });
+          };
         }
 
-        // ── 同环比对比 ────────────────────────────────────────────
-        function updateMoMBadge(currentTotal, lastMonthTotal) {
-          const badge  = document.getElementById("momBadge");
-          const pctEl  = document.getElementById("momPct");
-          if (!badge || lastMonthTotal == null) return;
-          if (lastMonthTotal === 0) {
-            // 上月无消费（新用户或新家庭），避免除以零
-            badge.classList.remove("hidden");
-            badge.className = "rounded-2xl bg-slate-50 px-3 py-2 text-right";
-            pctEl.textContent = "新开启记录";
-            pctEl.className   = "text-sm font-medium text-slate-400";
+        function updateWeeklyChart() {
+          const now = new Date();
+          const dow = now.getDay();
+          const startOfWeek = new Date(now);
+          startOfWeek.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+          startOfWeek.setHours(0, 0, 0, 0);
+
+          const DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+          const dayKeys = [], values = new Array(7).fill(0);
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(startOfWeek);
+            d.setDate(startOfWeek.getDate() + i);
+            dayKeys.push(getDateKey(d));
+          }
+          addedExpenses.forEach((item) => {
+            const idx = dayKeys.indexOf(getDateKey(new Date(item.timestamp)));
+            if (idx !== -1) values[idx] += Number(item.amount);
+          });
+
+          // ── 主视图折线图 ──
+          const canvas = document.getElementById("weeklyChart");
+          if (canvas) {
+            if (weeklyChartInst) {
+              weeklyChartInst.data.datasets[0].data = values;
+              weeklyChartInst.update("active");
+            } else {
+              weeklyChartInst = new Chart(canvas, buildWeeklyChartConfig(values, DAY_LABELS));
+            }
+          }
+
+          // ── 历史页折线图（同步渲染相同数据） ──
+          const canvasHist = document.getElementById("weeklyChartHistory");
+          if (canvasHist) {
+            if (weeklyChartHistInst) {
+              weeklyChartHistInst.data.datasets[0].data = values;
+              weeklyChartHistInst.update("active");
+            } else {
+              weeklyChartHistInst = new Chart(canvasHist, buildWeeklyChartConfig(values, DAY_LABELS));
+            }
+          }
+        }
+
+        // ── 数字滚动动画 ────────────────────────────────────────────
+        // 从 DOM 元素当前显示值平滑过渡到目标值（不依赖外部变量）
+        function animateNumber(el, toVal, duration = 650) {
+          const raw = (el.textContent || "0").replace(/[^\d.]/g, "");
+          const fromVal = parseFloat(raw) || 0;
+          if (Math.abs(fromVal - toVal) < 1) { el.textContent = formatMoney(toVal); return; }
+          const startTime = performance.now();
+          function tick(now) {
+            const t = Math.min((now - startTime) / duration, 1);
+            const ease = 1 - Math.pow(1 - t, 3); // cubic-ease-out
+            el.textContent = "¥ " + Math.round(fromVal + (toVal - fromVal) * ease).toLocaleString("zh-CN");
+            if (t < 1) requestAnimationFrame(tick);
+            else el.textContent = formatMoney(toVal);
+          }
+          requestAnimationFrame(tick);
+        }
+
+        // ── 支出洞察组件（同环比，含对比进度条） ───────────────────
+        let lastMonthTotalCached = 0; // 供实时更新时复用上月数据
+
+        function updateInsightSection(currentTotal, lastMonthTotal) {
+          const section    = document.getElementById("insightSection");
+          const badgeEl    = document.getElementById("insightBadge");
+          const deltaEl    = document.getElementById("insightDelta");
+          const deltaLabel = document.getElementById("insightDeltaLabel");
+          const currentEl  = document.getElementById("insightCurrent");
+          const lastEl     = document.getElementById("insightLast");
+          const barCur     = document.getElementById("insightBarCurrent");
+          const barLast    = document.getElementById("insightBarLast");
+          const pctCurEl   = document.getElementById("insightCurrentPct");
+          const pctLastEl  = document.getElementById("insightLastPct");
+          if (!section) return;
+
+          lastMonthTotalCached = lastMonthTotal ?? lastMonthTotalCached;
+          const lmt = lastMonthTotalCached;
+
+          section.classList.remove("hidden");
+          currentEl.textContent = formatMoney(currentTotal);
+          lastEl.textContent    = lmt > 0 ? formatMoney(lmt) : "¥ 0";
+
+          // 首月（上月无数据）
+          if (!lmt) {
+            deltaEl.textContent  = "-";
+            deltaEl.className    = "text-2xl font-bold tracking-tight text-slate-400 tabular-nums";
+            deltaLabel.textContent = "首月开始记录";
+            badgeEl.textContent  = "首月记录";
+            badgeEl.className    = "insight-badge";
+            barCur.style.width   = currentTotal > 0 ? "55%" : "0%";
+            barLast.style.width  = "0%";
+            pctCurEl.textContent = pctLastEl.textContent = "";
             return;
           }
 
-          const diff = currentTotal - lastMonthTotal;
-          const pct  = Math.abs((diff / lastMonthTotal) * 100).toFixed(1);
-          badge.classList.remove("hidden");
+          const diff = currentTotal - lmt;
+          const pct  = Math.abs((diff / lmt) * 100).toFixed(1);
+          const max  = Math.max(currentTotal, lmt, 1);
+
           if (diff < 0) {
-            pctEl.textContent = `↓ ${pct}%`;
-            pctEl.className   = "text-sm font-medium text-emerald-600";
-            badge.className   = "rounded-2xl bg-emerald-50 px-3 py-2 text-right";
+            deltaEl.textContent  = `${pct}%`;
+            deltaEl.className    = "text-2xl font-bold tracking-tight text-emerald-500 tabular-nums";
+            deltaLabel.textContent = "比上月省了 ↓";
+            badgeEl.textContent  = "支出减少";
+            badgeEl.className    = "insight-badge good";
           } else if (diff > 0) {
-            pctEl.textContent = `↑ ${pct}%`;
-            pctEl.className   = "text-sm font-medium text-red-500";
-            badge.className   = "rounded-2xl bg-red-50 px-3 py-2 text-right";
+            deltaEl.textContent  = `${pct}%`;
+            deltaEl.className    = "text-2xl font-bold tracking-tight text-red-500 tabular-nums";
+            deltaLabel.textContent = "比上月多花了 ↑";
+            badgeEl.textContent  = "支出增加";
+            badgeEl.className    = "insight-badge warn";
           } else {
-            pctEl.textContent = "持平";
-            pctEl.className   = "text-sm font-medium text-slate-500";
-            badge.className   = "rounded-2xl bg-slate-50 px-3 py-2 text-right";
+            deltaEl.textContent  = "0%";
+            deltaEl.className    = "text-2xl font-bold tracking-tight text-slate-500 tabular-nums";
+            deltaLabel.textContent = "与上月持平";
+            badgeEl.textContent  = "持平";
+            badgeEl.className    = "insight-badge";
           }
+
+          // 对比进度条（延迟触发触发 CSS transition）
+          const cPct = Math.round((currentTotal / max) * 100);
+          const lPct = Math.round((lmt / max) * 100);
+          setTimeout(() => {
+            barCur.style.width   = cPct + "%";
+            barLast.style.width  = lPct + "%";
+          }, 60);
+          pctCurEl.textContent = currentTotal > 0 ? cPct + "%" : "0%";
+          pctLastEl.textContent = lmt > 0 ? lPct + "%" : "0%";
         }
+
+        // 向后兼容旧调用
+        function updateMoMBadge(cur, last) { updateInsightSection(cur, last); }
 
         // ── Supabase family_settings (预算云同步) ────────────────
         async function fetchFamilyBudget() {
@@ -1415,7 +1573,7 @@
         }
 
         function updateSummary() {
-          totalEl.textContent = formatMoney(totalSpent);
+          animateNumber(totalEl, totalSpent);
           remainingEl.textContent = formatMoney(Math.max(0, budget - totalSpent));
           budgetValueEl.textContent = budget.toLocaleString("zh-CN");
 
@@ -2470,6 +2628,8 @@
           currentView.classList.add("hidden");
           currentView.classList.remove("flex");
           fabButton.classList.add("hidden");
+          // 历史页折线图需要在 canvas 可见后才能正确渲染
+          requestAnimationFrame(() => updateWeeklyChart());
           if (!historyLoaded) {
             historyLoaded = true;
             loadHistoryMonth(historyDate.year, historyDate.month);
