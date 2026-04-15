@@ -431,12 +431,27 @@
 
       /* ── 预算进度条（平滑渐变过渡） ────────────────────────── */
       .budget-bar {
-        background: #007aff;
+        background: linear-gradient(90deg, #06b6d4, #3b82f6);
         transition: width 0.7s cubic-bezier(0.4, 0, 0.2, 1),
-                    background-color 0.55s ease;
+                    background 0.55s ease;
       }
-      .budget-bar.warn { background: #f97316; }
-      .budget-bar.over { background: #ef4444; }
+      .budget-bar.warn { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+      .budget-bar.over { background: linear-gradient(90deg, #f97316, #ef4444); }
+
+      /* ── 预算超支：卡片背景呼吸灯 ──────────────────────────── */
+      @keyframes cardBreathe {
+        0%, 100% {
+          background-color: rgba(255, 255, 255, 0.75);
+          box-shadow: 0 2px 20px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+        }
+        50% {
+          background-color: rgba(255, 237, 237, 0.88);
+          box-shadow: 0 2px 28px rgba(239,68,68,0.14), 0 0 0 1.5px rgba(239,68,68,0.12);
+        }
+      }
+      .budget-card-over {
+        animation: cardBreathe 2.6s ease-in-out infinite;
+      }
 
       /* ── 支出洞察卡片 ────────────────────────────────────── */
       .insight-glass {
@@ -673,10 +688,12 @@
           </div>
           <p class="mt-2 text-sm text-slate-500">清晰地看到你的每一笔花费。</p>
 
-          <div class="mt-6 rounded-3xl bg-white/75 p-5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+          <div id="budgetCard" class="mt-6 rounded-3xl bg-white/75 p-5 shadow-xl ring-1 ring-black/5 backdrop-blur-xl">
             <div>
               <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">本月已支出</p>
               <p id="monthlyTotal" class="mt-2 text-3xl font-semibold tracking-tight text-slate-900 tabular-nums">¥ 0</p>
+              <!-- 精致单行环比摘要 -->
+              <p id="momInline" class="hidden mt-1.5 text-xs font-medium tracking-wide"></p>
             </div>
             <div class="mt-4 h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
             <!-- 预算进度条 -->
@@ -1023,7 +1040,7 @@
 
     <!-- ── 预算设置弹窗 ───────────────────────────────────────── -->
     <div id="budgetOverlay" class="fixed inset-0 z-50 hidden flex items-end justify-center sm:items-center"
-         style="background:rgba(15,18,28,0.30);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)">
+         style="background:rgba(15,18,28,0.30);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)">
       <div class="budget-sheet w-full max-w-sm overflow-hidden">
         <!-- 拖拽把手（移动端） -->
         <div class="flex justify-center pb-1 pt-3 sm:hidden">
@@ -1276,17 +1293,25 @@
         let weeklyChartHistInst = null;
 
         function buildWeeklyChartConfig(values, labels) {
+          const dark      = window.matchMedia("(prefers-color-scheme: dark)").matches;
+          const lineColor = "#3b82f6";
+          const fillColor = dark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.07)";
+          const gridColor = dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
+          const tickColor = dark ? "rgba(255,255,255,0.38)" : "#94a3b8";
+          const tooltipBg = dark ? "rgba(30,41,59,0.95)"   : "rgba(255,255,255,0.96)";
+          const tooltipFg = dark ? "#e2e8f0" : "#0f172a";
+          const tooltipSub= dark ? "#94a3b8" : "#475569";
           return {
             type: "line",
             data: {
               labels,
               datasets: [{
                 data: values,
-                borderColor: "#007aff",
-                backgroundColor: "rgba(0,122,255,0.07)",
+                borderColor: lineColor,
+                backgroundColor: fillColor,
                 borderWidth: 2,
-                pointBackgroundColor: "#007aff",
-                pointBorderColor: "#fff",
+                pointBackgroundColor: lineColor,
+                pointBorderColor: dark ? "#1e293b" : "#fff",
                 pointBorderWidth: 2,
                 pointRadius: 4,
                 pointHoverRadius: 6,
@@ -1301,10 +1326,10 @@
               plugins: {
                 legend: { display: false },
                 tooltip: {
-                  backgroundColor: "rgba(255,255,255,0.94)",
-                  titleColor: "#0f172a",
-                  bodyColor: "#475569",
-                  borderColor: "rgba(0,0,0,0.06)",
+                  backgroundColor: tooltipBg,
+                  titleColor: tooltipFg,
+                  bodyColor: tooltipSub,
+                  borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
                   borderWidth: 1,
                   padding: 10,
                   cornerRadius: 12,
@@ -1312,12 +1337,12 @@
                 },
               },
               scales: {
-                x: { grid: { display: false }, ticks: { font: { size: 11 }, color: "#94a3b8" } },
+                x: { grid: { display: false }, ticks: { font: { size: 11 }, color: tickColor } },
                 y: {
-                  grid: { color: "rgba(0,0,0,0.04)", drawTicks: false },
+                  grid: { color: gridColor, drawTicks: false },
                   border: { display: false },
                   ticks: {
-                    font: { size: 11 }, color: "#94a3b8", maxTicksLimit: 4,
+                    font: { size: 11 }, color: tickColor, maxTicksLimit: 4,
                     callback: (v) => v === 0 ? "0" : (v >= 1000 ? "¥" + (v / 1000).toFixed(1) + "k" : "¥" + v),
                   },
                   beginAtZero: true,
@@ -1384,6 +1409,26 @@
             else el.textContent = formatMoney(toVal);
           }
           requestAnimationFrame(tick);
+        }
+
+        // ── 环比单行摘要（余额卡内精致小字） ────────────────────────
+        function updateMomInline(currentTotal, lastMonthTotal) {
+          const el = document.getElementById("momInline");
+          if (!el) return;
+          if (!lastMonthTotal) { el.classList.add("hidden"); return; }
+          const diff = currentTotal - lastMonthTotal;
+          const pct  = Math.abs((diff / lastMonthTotal) * 100).toFixed(1);
+          el.classList.remove("hidden");
+          if (diff < 0) {
+            el.textContent = `↓ 比上月省了 ${pct}%`;
+            el.style.color = "#10b981"; // emerald-500
+          } else if (diff > 0) {
+            el.textContent = `↑ 比上月多花了 ${pct}%`;
+            el.style.color = "#ef4444"; // red-500
+          } else {
+            el.textContent = "与上月持平";
+            el.style.color = "#94a3b8"; // slate-400
+          }
         }
 
         // ── 支出洞察组件（同环比，含对比进度条） ───────────────────
@@ -1458,7 +1503,10 @@
         }
 
         // 向后兼容旧调用
-        function updateMoMBadge(cur, last) { updateInsightSection(cur, last); }
+        function updateMoMBadge(cur, last) {
+          updateInsightSection(cur, last);
+          updateMomInline(cur, last ?? lastMonthTotalCached);
+        }
 
         // ── Supabase family_settings (预算云同步) ────────────────
         async function fetchFamilyBudget() {
@@ -1577,21 +1625,25 @@
           remainingEl.textContent = formatMoney(Math.max(0, budget - totalSpent));
           budgetValueEl.textContent = budget.toLocaleString("zh-CN");
 
-          // 预算进度条 + 警告标签
+          // 预算进度条 + 警告标签 + 卡片呼吸灯
           const bar        = document.getElementById("budgetProgressBar");
           const overrunTag = document.getElementById("budgetOverrunTag");
+          const card       = document.getElementById("budgetCard");
           if (!bar) return;
           const pct = budget > 0 ? Math.min((totalSpent / budget) * 100, 100) : 0;
           bar.style.width = pct + "%";
           if (totalSpent >= budget) {
             bar.classList.remove("warn"); bar.classList.add("over");
             overrunTag.classList.remove("hidden");
+            card?.classList.add("budget-card-over");      // 超支：启动呼吸灯
           } else if (totalSpent >= budget * 0.8) {
             bar.classList.remove("over"); bar.classList.add("warn");
             overrunTag.classList.add("hidden");
+            card?.classList.remove("budget-card-over");
           } else {
             bar.classList.remove("warn", "over");
             overrunTag.classList.add("hidden");
+            card?.classList.remove("budget-card-over");
           }
         }
 
