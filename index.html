@@ -429,6 +429,20 @@
         transform: scale(0.90);
       }
 
+      /* ── 预算进度条 ──────────────────────────────────────── */
+      .budget-bar { background: #007aff; }
+      .budget-bar.warn  { background: #f97316; }
+      .budget-bar.over  { background: #ef4444; }
+
+      /* ── 本周折线图容器 ──────────────────────────────────── */
+      .weekly-chart-wrap {
+        position: relative;
+        height: 110px;
+      }
+      @media (min-width: 640px) {
+        .weekly-chart-wrap { height: 130px; }
+      }
+
       /* ── 登录屏家庭列表同步状态 ─────────────────────────── */
       .login-sync-status {
         font-size: 0.7rem;
@@ -626,17 +640,27 @@
             <div class="flex items-end justify-between">
               <div>
                 <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">本月已支出</p>
-                <p id="monthlyTotal" class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">¥ 4,268</p>
+                <p id="monthlyTotal" class="mt-2 text-3xl font-semibold tracking-tight text-slate-900">¥ 0</p>
               </div>
-              <div class="rounded-2xl bg-accentSoft px-3 py-2 text-right">
+              <!-- 同环比徽章 (动态) -->
+              <div id="momBadge" class="hidden rounded-2xl px-3 py-2 text-right">
                 <p class="text-[11px] text-slate-500">较上月</p>
-                <p class="text-sm font-medium text-emerald-600">- 8.3%</p>
+                <p id="momPct" class="text-sm font-medium">-</p>
               </div>
             </div>
             <div class="mt-4 h-px w-full bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
-            <div class="mt-4 flex items-center justify-between text-xs text-slate-500">
-              <span>剩余额度</span>
-              <span id="remainingBudget" class="font-medium text-slate-700">¥ 3,732</span>
+            <!-- 预算进度条 -->
+            <div class="mt-4">
+              <div class="mb-2 flex items-center justify-between text-xs text-slate-500">
+                <span>剩余额度</span>
+                <div class="flex items-center gap-1.5">
+                  <span id="budgetOverrunTag" class="hidden rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-red-500">预算超支</span>
+                  <span id="remainingBudget" class="font-medium text-slate-700">¥ 0</span>
+                </div>
+              </div>
+              <div class="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                <div id="budgetProgressBar" class="budget-bar h-full rounded-full transition-all duration-500" style="width:0%"></div>
+              </div>
             </div>
           </div>
         </section>
@@ -661,6 +685,16 @@
                 </div>
               </div>
               <ul id="chartLegend" class="flex w-full flex-col gap-2 sm:flex-1"></ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- 本周支出趋势折线图 -->
+        <section aria-label="本周支出趋势">
+          <h2 class="mb-3 text-sm font-semibold tracking-tight text-slate-900">本周支出趋势</h2>
+          <div class="rounded-3xl bg-white/75 p-5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+            <div class="weekly-chart-wrap">
+              <canvas id="weeklyChart"></canvas>
             </div>
           </div>
         </section>
@@ -1156,6 +1190,159 @@
         }
         // ────────────────────────────────────────────────────────────
 
+        // ── 本周折线图 ────────────────────────────────────────────
+        let weeklyChartInst = null;
+
+        function updateWeeklyChart() {
+          const now = new Date();
+          const dow = now.getDay(); // 0=Sun
+          const startOfWeek = new Date(now);
+          startOfWeek.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
+          startOfWeek.setHours(0, 0, 0, 0);
+
+          const DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+          const dayKeys = [], values = new Array(7).fill(0);
+          for (let i = 0; i < 7; i++) {
+            const d = new Date(startOfWeek);
+            d.setDate(startOfWeek.getDate() + i);
+            dayKeys.push(getDateKey(d));
+          }
+          addedExpenses.forEach((item) => {
+            const idx = dayKeys.indexOf(getDateKey(new Date(item.timestamp)));
+            if (idx !== -1) values[idx] += Number(item.amount);
+          });
+
+          const canvas = document.getElementById("weeklyChart");
+          if (weeklyChartInst) {
+            weeklyChartInst.data.datasets[0].data = values;
+            weeklyChartInst.update("active");
+            return;
+          }
+          weeklyChartInst = new Chart(canvas, {
+            type: "line",
+            data: {
+              labels: DAY_LABELS,
+              datasets: [{
+                data: values,
+                borderColor: "#007aff",
+                backgroundColor: "rgba(0,122,255,0.07)",
+                borderWidth: 2,
+                pointBackgroundColor: "#007aff",
+                pointBorderColor: "#fff",
+                pointBorderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                fill: true,
+                tension: 0.4,
+              }],
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  backgroundColor: "rgba(255,255,255,0.94)",
+                  titleColor: "#0f172a",
+                  bodyColor: "#475569",
+                  borderColor: "rgba(0,0,0,0.06)",
+                  borderWidth: 1,
+                  padding: 10,
+                  cornerRadius: 12,
+                  callbacks: {
+                    label: (ctx) => ` ¥ ${ctx.parsed.y.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}`,
+                  },
+                },
+              },
+              scales: {
+                x: { grid: { display: false }, ticks: { font: { size: 11 }, color: "#94a3b8" } },
+                y: {
+                  grid: { color: "rgba(0,0,0,0.04)", drawTicks: false },
+                  border: { display: false },
+                  ticks: {
+                    font: { size: 11 }, color: "#94a3b8", maxTicksLimit: 4,
+                    callback: (v) => v === 0 ? "0" : (v >= 1000 ? "¥" + (v / 1000).toFixed(1) + "k" : "¥" + v),
+                  },
+                  beginAtZero: true,
+                },
+              },
+            },
+          });
+        }
+
+        // ── 同环比对比 ────────────────────────────────────────────
+        function updateMoMBadge(currentTotal, lastMonthTotal) {
+          const badge  = document.getElementById("momBadge");
+          const pctEl  = document.getElementById("momPct");
+          if (!badge || lastMonthTotal == null) return;
+          if (lastMonthTotal === 0) {
+            // 上月无消费（新用户或新家庭），避免除以零
+            badge.classList.remove("hidden");
+            badge.className = "rounded-2xl bg-slate-50 px-3 py-2 text-right";
+            pctEl.textContent = "新开启记录";
+            pctEl.className   = "text-sm font-medium text-slate-400";
+            return;
+          }
+
+          const diff = currentTotal - lastMonthTotal;
+          const pct  = Math.abs((diff / lastMonthTotal) * 100).toFixed(1);
+          badge.classList.remove("hidden");
+          if (diff < 0) {
+            pctEl.textContent = `↓ ${pct}%`;
+            pctEl.className   = "text-sm font-medium text-emerald-600";
+            badge.className   = "rounded-2xl bg-emerald-50 px-3 py-2 text-right";
+          } else if (diff > 0) {
+            pctEl.textContent = `↑ ${pct}%`;
+            pctEl.className   = "text-sm font-medium text-red-500";
+            badge.className   = "rounded-2xl bg-red-50 px-3 py-2 text-right";
+          } else {
+            pctEl.textContent = "持平";
+            pctEl.className   = "text-sm font-medium text-slate-500";
+            badge.className   = "rounded-2xl bg-slate-50 px-3 py-2 text-right";
+          }
+        }
+
+        // ── Supabase family_settings (预算云同步) ────────────────
+        async function fetchFamilyBudget() {
+          try {
+            const { data, error } = await sb
+              .from("family_settings")
+              .select("monthly_budget")
+              .eq("family_code", session.familyCode)
+              .maybeSingle();
+            if (error || !data) return null;
+            return data.monthly_budget;
+          } catch { return null; }
+        }
+
+        async function saveFamilyBudgetToCloud(value) {
+          try {
+            await sb.from("family_settings").upsert(
+              { family_code: session.familyCode, monthly_budget: value, updated_at: new Date().toISOString() },
+              { onConflict: "family_code" }
+            );
+          } catch (e) { console.warn("[budget-cloud]", e?.message); }
+        }
+
+        // ── 上月总支出（用于同环比） ──────────────────────────────
+        async function fetchLastMonthTotal() {
+          const now = new Date();
+          const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+          const m = now.getMonth() === 0 ? 12 : now.getMonth(); // 1-indexed
+          const start = new Date(y, m - 1, 1).toISOString();
+          const end   = new Date(y, m, 1).toISOString();
+          try {
+            const { data, error } = await sb
+              .from("expenses")
+              .select("amount")
+              .eq("family_code", session.familyCode)
+              .gte("created_at", start)
+              .lt("created_at", end);
+            if (error || !data) return 0;
+            return data.reduce((s, r) => s + Number(r.amount), 0);
+          } catch { return 0; }
+        }
+
         // ── DOM refs ──────────────────────────────────────────────
         const totalEl = document.getElementById("monthlyTotal");
         const remainingEl = document.getElementById("remainingBudget");
@@ -1231,6 +1418,23 @@
           totalEl.textContent = formatMoney(totalSpent);
           remainingEl.textContent = formatMoney(Math.max(0, budget - totalSpent));
           budgetValueEl.textContent = budget.toLocaleString("zh-CN");
+
+          // 预算进度条 + 警告标签
+          const bar        = document.getElementById("budgetProgressBar");
+          const overrunTag = document.getElementById("budgetOverrunTag");
+          if (!bar) return;
+          const pct = budget > 0 ? Math.min((totalSpent / budget) * 100, 100) : 0;
+          bar.style.width = pct + "%";
+          if (totalSpent >= budget) {
+            bar.classList.remove("warn"); bar.classList.add("over");
+            overrunTag.classList.remove("hidden");
+          } else if (totalSpent >= budget * 0.8) {
+            bar.classList.remove("over"); bar.classList.add("warn");
+            overrunTag.classList.add("hidden");
+          } else {
+            bar.classList.remove("warn", "over");
+            overrunTag.classList.add("hidden");
+          }
         }
 
         function getDateKey(date) {
@@ -1475,6 +1679,7 @@
           totalSpent = addedExpenses.reduce((sum, item) => sum + Number(item.amount), 0);
           updateSummary();
           updateChart();
+          updateWeeklyChart();
         }
 
         // ── 登录逻辑 ──────────────────────────────────────────────
@@ -1602,17 +1807,32 @@
           registerAllLocalFamilies(); // 非阻塞：把本地所有家庭/成员推送到云端 families 表
           syncFamilyMembers();         // 非阻塞：从云端同步当前家庭的最新成员列表
 
-          // ② 补传上次失败的离线账单（先于读取，避免数据不一致）
+          // ② 补传上次失败的离线账单
           await flushPendingUploads();
 
-          // ③ 拉取云端最新数据，对比后更新
-          const fresh = await fetchFamilyExpenses();
+          // ③ 并行拉取：云端预算 + 上月合计 + 本月账单
+          const [cloudBudget, lastMonthTotal, fresh] = await Promise.all([
+            fetchFamilyBudget(),
+            fetchLastMonthTotal(),
+            fetchFamilyExpenses(),
+          ]);
+
+          // 云端预算优先（多端同步）
+          if (cloudBudget && cloudBudget !== budget) {
+            budget = cloudBudget;
+            localStorage.setItem(BUDGET_KEY, String(budget));
+          }
+
           const freshSig  = fresh.map((e) => e.id).join(",");
           const cachedSig = cached.map((e) => e.id).join(",");
           addedExpenses = fresh;
           saveExpenseCache(session.familyCode, fresh);
           renderExpenses();
           recalculateTotal();
+
+          // 同环比徽章
+          updateMoMBadge(totalSpent, lastMonthTotal);
+
           if (cached.length > 0 && freshSig !== cachedSig) {
             showToast("已同步最新账单 ✓");
           }
@@ -1651,6 +1871,8 @@
           localStorage.setItem(BUDGET_KEY, String(v));
           updateSummary();
           closeBudgetModal();
+          // 同步到云端（非阻塞），让所有设备用同一个预算
+          saveFamilyBudgetToCloud(v);
         });
         budgetInput.addEventListener("keydown", (e) => {
           if (e.key === "Enter") saveBudgetBtn.click();
