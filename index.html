@@ -809,6 +809,7 @@
                 清空今日数据
               </button>
               <button
+                id="viewAllBtn"
                 class="text-xs font-medium text-accent hover:text-accent/80 focus:outline-none focus-visible:rounded-full focus-visible:ring-2 focus-visible:ring-accent/40"
                 type="button"
               >
@@ -2946,22 +2947,52 @@
         // ── 清空今日数据 ──────────────────────────────────────────
         clearTodayBtn.addEventListener("click", async () => {
           const todayKey = getDateKey(new Date());
+          // 清空今日所有人录入（同一家庭），不限成员
           const todayItems = addedExpenses.filter(
-            (item) => item.member === session.member && getDateKey(new Date(item.timestamp)) === todayKey
+            (item) => getDateKey(new Date(item.timestamp)) === todayKey
           );
-          if (!todayItems.length) return;
-          const ok = window.confirm(`确认清空今日由"${session.member}"录入的 ${todayItems.length} 条记录吗？此操作不可撤销。`);
+          if (!todayItems.length) {
+            showToast("今天还没有记录可清空");
+            return;
+          }
+          const ok = window.confirm(`确认清空今日 ${todayItems.length} 条记录吗？此操作不可撤销。`);
           if (!ok) return;
+
+          clearTodayBtn.disabled = true;
+          clearTodayBtn.textContent = "清空中…";
 
           const todayIds = new Set(todayItems.map((i) => i.id));
           addedExpenses = addedExpenses.filter((i) => !todayIds.has(i.id));
           saveExpenseCache(session.familyCode, addedExpenses);
-          expenseList.querySelectorAll('article[data-dynamic="1"]').forEach((node) => {
-            if (todayIds.has(node.dataset.recordId)) node.remove();
-          });
+          clearHistoryCache(session.familyCode);
+          renderExpenses();
           recalculateTotal();
 
           await Promise.all([...todayIds].map((id) => deleteExpenseFromCloud(id)));
+
+          clearTodayBtn.disabled = false;
+          clearTodayBtn.textContent = "清空今日数据";
+          showToast(`已清空今日 ${todayItems.length} 条记录 ✓`);
+        });
+
+        // ── 查看全部 → 跳转历史账单 Tab ───────────────────────────
+        document.getElementById("viewAllBtn").addEventListener("click", () => {
+          tabHistoryBtn.classList.add("active");
+          tabCurrentBtn.classList.remove("active");
+          historyView.classList.remove("hidden");
+          historyView.classList.add("flex");
+          currentView.classList.add("hidden");
+          currentView.classList.remove("flex");
+          fabButton.classList.add("hidden");
+          requestAnimationFrame(() => updateWeeklyChart());
+          if (!historyLoaded) {
+            historyLoaded = true;
+            loadHistoryMonth(historyDate.year, historyDate.month);
+          } else {
+            // 已加载过则直接重置到本月
+            historyDate = { ...NOW_YM };
+            loadHistoryMonth(historyDate.year, historyDate.month);
+          }
         });
 
         // ── 启动 ──────────────────────────────────────────────────
