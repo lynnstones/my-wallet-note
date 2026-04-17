@@ -777,6 +777,16 @@
           </div>
         </section>
 
+        <section aria-label="本月消费排行榜">
+          <h2 class="mb-3 text-sm font-semibold tracking-tight text-slate-900">本月消费排行榜（Top 5）</h2>
+          <div class="rounded-3xl bg-white/75 p-5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+            <div id="monthlyRankingEmpty" class="hidden py-5 text-center text-sm text-slate-400">
+              本月暂无可排行消费
+            </div>
+            <ul id="monthlyRankingList" class="space-y-3"></ul>
+          </div>
+        </section>
+
         <!-- 本周支出趋势折线图 -->
         <section aria-label="本周支出趋势">
           <h2 class="mb-3 text-sm font-semibold tracking-tight text-slate-900">本周支出趋势</h2>
@@ -1305,6 +1315,71 @@
               },
             });
           }
+        }
+
+        function updateMonthlyRanking() {
+          const rankingListEl = document.getElementById("monthlyRankingList");
+          const rankingEmptyEl = document.getElementById("monthlyRankingEmpty");
+          if (!rankingListEl || !rankingEmptyEl) return;
+
+          const now = new Date();
+          const curY = now.getFullYear();
+          const curM = now.getMonth();
+          const monthItems = addedExpenses.filter((item) => {
+            const d = new Date(item.timestamp);
+            return d.getFullYear() === curY && d.getMonth() === curM;
+          });
+
+          const totals = {};
+          monthItems.forEach((item) => {
+            const cat = item.category || "其他";
+            totals[cat] = (totals[cat] || 0) + Number(item.amount);
+          });
+
+          const sortedTop5 = Object.entries(totals)
+            .filter(([, amt]) => Number.isFinite(amt) && amt > 0)
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 5);
+
+          if (sortedTop5.length === 0) {
+            rankingListEl.innerHTML = "";
+            rankingEmptyEl.classList.remove("hidden");
+            return;
+          }
+
+          rankingEmptyEl.classList.add("hidden");
+          const totalTop5 = sortedTop5.reduce((sum, [, amt]) => sum + amt, 0);
+
+          // 排名徽章：1金 2银 3铜 4~5 低调灰
+          const RANK_STYLES = [
+            { bg: "#d97706", color: "#ffffff", label: "#1" },
+            { bg: "#64748b", color: "#ffffff", label: "#2" },
+            { bg: "#b45309", color: "#ffffff", label: "#3" },
+            { bg: "#e2e8f0", color: "#475569", label: "#4" },
+            { bg: "#e2e8f0", color: "#475569", label: "#5" },
+          ];
+
+          rankingListEl.innerHTML = sortedTop5.map(([cat, amt], idx) => {
+            const conf  = categoryConfig[cat] || categoryConfig["其他"];
+            const pct   = totalTop5 > 0 ? (amt / totalTop5) * 100 : 0;
+            const rank  = RANK_STYLES[idx];
+            return `
+              <li class="rounded-2xl border border-slate-100 bg-white/80 px-3.5 py-3">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="flex items-center gap-2.5 min-w-0">
+                    <span class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+                          style="background:${rank.bg};color:${rank.color}">${rank.label}</span>
+                    <span class="category-icon ${conf.class} scale-75 shrink-0"></span>
+                    <span class="truncate text-sm font-medium text-slate-700">${cat}</span>
+                  </span>
+                  <span class="shrink-0 text-sm font-semibold text-slate-900">${formatMoney(amt)}</span>
+                </div>
+                <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                  <div class="h-full rounded-full transition-all duration-500 ease-out" style="width:${pct.toFixed(1)}%;background:${conf.chartColor}"></div>
+                </div>
+              </li>
+            `;
+          }).join("");
         }
         // ────────────────────────────────────────────────────────────
 
@@ -2088,6 +2163,7 @@
           totalSpent = addedExpenses.reduce((sum, item) => sum + Number(item.amount), 0);
           updateSummary();
           updateChart();
+          updateMonthlyRanking();
           updateWeeklyChart();
           updateMoMBadge(totalSpent, lastMonthTotalCached);
         }
