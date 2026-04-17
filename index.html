@@ -1029,6 +1029,15 @@
             class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none ring-accent/30 transition placeholder:text-slate-400 focus:border-accent focus:ring-2"
           />
         </div>
+        <div>
+          <label for="expenseDate" class="mb-1 block text-xs font-medium text-slate-500">日期 (默认今天，可补账)</label>
+          <input
+            id="expenseDate"
+            name="expenseDate"
+            type="date"
+            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none ring-accent/30 transition focus:border-accent focus:ring-2"
+          />
+        </div>
         <button
           type="submit"
           class="mt-2 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 active:scale-[0.99]"
@@ -1154,6 +1163,17 @@
             if (keys.length > 6) keys.slice(6).forEach((k) => delete all[familyCode][k]);
             localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(all));
           } catch (e) { console.warn("[history-cache]", e?.message); }
+        }
+
+        function clearHistoryCache(familyCode) {
+          try {
+            const raw = localStorage.getItem(HISTORY_CACHE_KEY);
+            if (!raw) return;
+            const all = JSON.parse(raw);
+            if (!all[familyCode]) return;
+            delete all[familyCode];
+            localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(all));
+          } catch (e) { console.warn("[history-cache-clear]", e?.message); }
         }
 
         // ── 离线待上传队列 ──────────────────────────────────────────
@@ -1560,6 +1580,7 @@
         const nameInput = document.getElementById("expenseName");
         const amountInput = document.getElementById("expenseAmount");
         const noteInput = document.getElementById("expenseNote");
+        const dateInput = document.getElementById("expenseDate");
         const expenseList = document.getElementById("expenseList");
         const clearTodayBtn = document.getElementById("clearTodayBtn");
         const installPrompt = document.getElementById("installPrompt");
@@ -1579,6 +1600,12 @@
         const saveBudgetBtn = document.getElementById("saveBudgetBtn");
         let deferredInstallPrompt = null;
         let realtimeChannel = null;
+        const deletingExpenseIds = new Set();
+        // 左滑交互手感参数（可调）
+        // 1) SWIPE_DELETE_MAX_SHIFT: 单条记录左滑时的最大位移（越大越“能拉开”）
+        // 2) SWIPE_DELETE_TRIGGER_DISTANCE: 触发删除的阈值（越小越容易触发）
+        const SWIPE_DELETE_MAX_SHIFT = 88;
+        const SWIPE_DELETE_TRIGGER_DISTANCE = 56;
 
         // ── Session ───────────────────────────────────────────────
         const SESSION_KEY  = "wallet_session_v1";
@@ -1652,6 +1679,21 @@
           const m = String(date.getMonth() + 1).padStart(2, "0");
           const d = String(date.getDate()).padStart(2, "0");
           return `${y}-${m}-${d}`;
+        }
+
+        function setDefaultExpenseDate() {
+          if (!dateInput) return;
+          dateInput.value = getDateKey(new Date());
+          dateInput.max = getDateKey(new Date());
+        }
+
+        function buildTimestampFromDateInput(dateStr) {
+          if (!dateStr) return new Date().toISOString();
+          const now = new Date();
+          const withCurrentTime = `${dateStr}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+          const selected = new Date(withCurrentTime);
+          if (Number.isNaN(selected.getTime())) return new Date().toISOString();
+          return selected.toISOString();
         }
 
         // ── Supabase I/O ──────────────────────────────────────────
@@ -1737,12 +1779,17 @@
         }
 
         async function deleteExpenseFromCloud(id) {
+          if (!id) return false;
           const { error } = await sb
             .from("expenses")
             .delete()
             .eq("id", id)
             .eq("family_code", session.familyCode);
-          if (error) console.error("Supabase 删除失败:", error.message);
+          if (error) {
+            console.error("Supabase 删除失败:", error.message);
+            return false;
+          }
+          return true;
         }
 
         // ── Realtime 订阅 ────────────────────────────────────────
@@ -1806,6 +1853,7 @@
                   setTimeout(() => node.remove(), 310);
                 }
                 recalculateTotal();
+                if (historyLoaded) loadHistoryMonth(historyDate.year, historyDate.month);
               }
             )
             .subscribe((status) => {
@@ -1825,6 +1873,7 @@
         function openModal() {
           overlay.classList.remove("hidden");
           modal.classList.remove("hidden");
+          setDefaultExpenseDate();
           setTimeout(() => nameInput.focus(), 0);
         }
 
@@ -1832,11 +1881,83 @@
           overlay.classList.add("hidden");
           modal.classList.add("hidden");
           form.reset();
+          setDefaultExpenseDate();
         }
 
-        function createExpenseRow(record) {
+        async function refreshDataAfterDelete() {
+          const fresh = await fetchFamilyExpenses();
+          addedExpenses = fresh;
+          saveExpenseCache(session.familyCode, fresh);
+          clearHistoryCache(session.familyCode);
+          renderExpenses();
+          recalculateTotal();
+          if (historyLoaded) {
+            await loadHistoryMonth(historyDate.year, historyDate.month);
+          }
+        }
+
+        async function handleDeleteRecord(id, options = {}) {
+          const sourceButton = options.sourceButton || null;
+          if (!id) {
+            showToast("删除失败：账单缺少 id");
+            return;
+          }
+          if (deletingExpenseIds.has(id)) {
+            showToast("正在删除中，请稍候…");
+            return;
+          }
+          const ok = window.confirm("确定要删除这笔账吗？");
+          if (!ok) return;
+
+          deletingExpenseIds.add(id);
+          if (sourceButton) {
+            sourceButton.disabled = true;
+            sourceButton.classList.add("opacity-40", "cursor-not-allowed");
+          }
+          const snapshot = [...addedExpenses];
+
+          try {
+            // 先本地乐观更新，提升响应速度；失败时会自动回滚
+            addedExpenses = addedExpenses.filter((e) => e.id !== id);
+            saveExpenseCache(session.familyCode, addedExpenses);
+            renderExpenses();
+            recalculateTotal();
+            if (historyLoaded) await loadHistoryMonth(historyDate.year, historyDate.month);
+
+            const deleted = await deleteExpenseFromCloud(id);
+            if (!deleted) {
+              addedExpenses = snapshot;
+              saveExpenseCache(session.familyCode, snapshot);
+              renderExpenses();
+              recalculateTotal();
+              if (historyLoaded) await loadHistoryMonth(historyDate.year, historyDate.month);
+              showToast("删除失败，已恢复这笔账单。请检查网络后重试");
+              return;
+            }
+
+            await refreshDataAfterDelete();
+            showToast("已删除账单 ✓");
+          } catch (e) {
+            console.error("[delete] 删除异常:", e?.message || e);
+            addedExpenses = snapshot;
+            saveExpenseCache(session.familyCode, snapshot);
+            renderExpenses();
+            recalculateTotal();
+            if (historyLoaded) await loadHistoryMonth(historyDate.year, historyDate.month);
+            showToast("删除异常，已恢复这笔账单。请稍后重试");
+          } finally {
+            deletingExpenseIds.delete(id);
+            if (sourceButton) {
+              sourceButton.disabled = false;
+              sourceButton.classList.remove("opacity-40", "cursor-not-allowed");
+            }
+          }
+        }
+
+        function createExpenseRow(record, options = {}) {
+          const { enableSwipeDelete = false } = options;
           const article = document.createElement("article");
-          article.className = "flex items-center px-4 py-3.5 sm:px-5";
+          article.className = "relative overflow-hidden";
           article.dataset.recordId = record.id;
           article.dataset.dynamic = "1";
 
@@ -1847,29 +1968,107 @@
           const memberTag = record.member ? `来自 ${record.member}` : "";
 
           article.innerHTML = `
-            <div class="mr-3 category-icon ${config.class} scale-90"></div>
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center justify-between gap-2">
-                <p class="truncate text-[15px] font-medium text-slate-900 name-el"></p>
-                <p class="shrink-0 text-sm font-medium text-slate-900 amount-el"></p>
+            <div class="swipe-delete-bg pointer-events-none absolute inset-0 hidden items-center justify-end bg-red-50/80 pr-4">
+              <div class="swipe-delete-icon flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-500 transition-all duration-150" style="opacity:0; transform:translateX(16px);">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2" />
+                  <path d="M19 6l-1 14H6L5 6" />
+                  <path d="M10 10v6M14 10v6" />
+                </svg>
               </div>
-              <div class="mt-0.5 flex flex-col text-xs text-slate-400">
-                <div class="flex items-center gap-1.5">
-                  <span>${todayLabel} · ${time} · ${record.category}</span>
-                  ${memberTag ? `<span class="rounded-full bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">${memberTag}</span>` : ""}
+            </div>
+            <div class="row-content flex items-center px-4 py-3.5 sm:px-5 bg-white transition-transform duration-150">
+              <div class="mr-3 category-icon ${config.class} scale-90"></div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="truncate text-[15px] font-medium text-slate-900 name-el"></p>
+                  <p class="shrink-0 text-sm font-medium text-slate-900 amount-el"></p>
                 </div>
-                <span class="italic mt-0.5 note-el"></span>
+                <div class="mt-0.5 flex flex-col text-xs text-slate-400">
+                  <div class="flex items-center gap-1.5">
+                    <span>${todayLabel} · ${time} · ${record.category}</span>
+                    ${memberTag ? `<span class="rounded-full bg-slate-100 px-1.5 py-px text-[10px] text-slate-500">${memberTag}</span>` : ""}
+                  </div>
+                  <span class="italic mt-0.5 note-el"></span>
+                </div>
               </div>
+              <button type="button" class="delete-record-btn ml-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-red-50 hover:text-red-500" title="删除账单" aria-label="删除账单">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4h8v2" />
+                  <path d="M19 6l-1 14H6L5 6" />
+                  <path d="M10 10v6M14 10v6" />
+                </svg>
+              </button>
             </div>
           `;
 
           article.querySelector(".name-el").textContent = record.name;
           article.querySelector(".amount-el").textContent = `- ${formatMoney(Number(record.amount))}`;
           const noteEl = article.querySelector(".note-el");
+          const rowContentEl = article.querySelector(".row-content");
+          const swipeBgEl = article.querySelector(".swipe-delete-bg");
+          const swipeIconEl = article.querySelector(".swipe-delete-icon");
           if (record.note) {
             noteEl.textContent = record.note;
           } else {
             noteEl.remove();
+          }
+          const delBtn = article.querySelector(".delete-record-btn");
+          delBtn.addEventListener("click", async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await handleDeleteRecord(record.id, { sourceButton: delBtn });
+          });
+
+          if (enableSwipeDelete) {
+            let startX = 0;
+            let startY = 0;
+            let swiping = false;
+            let triggered = false;
+            rowContentEl.style.transition = "transform 0.16s ease";
+            swipeBgEl.classList.remove("hidden");
+            swipeBgEl.classList.add("flex");
+
+            article.addEventListener("touchstart", (e) => {
+              if (deletingExpenseIds.has(record.id)) return;
+              const t = e.touches[0];
+              startX = t.clientX;
+              startY = t.clientY;
+              swiping = true;
+              triggered = false;
+            }, { passive: true });
+
+            article.addEventListener("touchmove", (e) => {
+              if (!swiping || triggered) return;
+              const t = e.touches[0];
+              const dx = t.clientX - startX;
+              const dy = t.clientY - startY;
+              if (Math.abs(dx) <= Math.abs(dy)) return;
+              if (dx < 0) {
+                const shift = Math.max(dx, -SWIPE_DELETE_MAX_SHIFT);
+                rowContentEl.style.transform = `translateX(${shift}px)`;
+                const progress = Math.min(1, Math.abs(shift) / SWIPE_DELETE_TRIGGER_DISTANCE);
+                swipeIconEl.style.opacity = String(progress);
+                const iconFollow = Math.max(0, 16 + shift * 0.25);
+                swipeIconEl.style.transform = `translateX(${iconFollow}px)`;
+              }
+            }, { passive: true });
+
+            article.addEventListener("touchend", async () => {
+              if (!swiping || triggered) return;
+              swiping = false;
+              const matrix = new DOMMatrixReadOnly(getComputedStyle(rowContentEl).transform);
+              const currentX = matrix.m41 || 0;
+              rowContentEl.style.transform = "translateX(0px)";
+              swipeIconEl.style.opacity = "0";
+              swipeIconEl.style.transform = "translateX(16px)";
+              if (currentX <= -SWIPE_DELETE_TRIGGER_DISTANCE) {
+                triggered = true;
+                await handleDeleteRecord(record.id, { sourceButton: delBtn });
+              }
+            });
           }
 
           return article;
@@ -1890,6 +2089,7 @@
           updateSummary();
           updateChart();
           updateWeeklyChart();
+          updateMoMBadge(totalSpent, lastMonthTotalCached);
         }
 
         // ── 登录逻辑 ──────────────────────────────────────────────
@@ -2516,6 +2716,7 @@
           const amount = Number(amountInput.value);
           const category = form.querySelector('input[name="category"]:checked').value;
           const note = noteInput.value.trim();
+          const selectedDate = dateInput?.value || "";
 
           if (!name || !Number.isFinite(amount) || amount <= 0) return;
 
@@ -2526,7 +2727,7 @@
             category,
             note,
             member: session.member,
-            timestamp: new Date().toISOString(),
+            timestamp: buildTimestampFromDateInput(selectedDate),
           };
 
           expenseList.prepend(createExpenseRow(record));
@@ -2636,7 +2837,7 @@
             historyEmpty.classList.add("hidden");
             historyEmpty.classList.remove("flex");
             historyExpenseList.classList.remove("hidden");
-            expenses.forEach((record) => historyExpenseList.appendChild(createExpenseRow(record)));
+            expenses.forEach((record) => historyExpenseList.appendChild(createExpenseRow(record, { enableSwipeDelete: true })));
           }
         }
 
@@ -2728,6 +2929,7 @@
         });
 
         // ── 启动 ──────────────────────────────────────────────────
+        setDefaultExpenseDate();
         session = loadSession();
         if (session) {
           initApp();
