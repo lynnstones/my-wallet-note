@@ -2017,10 +2017,7 @@
             <div class="row-content flex items-center px-4 py-3.5 sm:px-5 bg-white transition-transform duration-150">
               <div class="mr-3 category-icon ${config.class} scale-90"></div>
               <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between gap-2">
-                  <p class="truncate text-[15px] font-medium text-slate-900 name-el"></p>
-                  <p class="shrink-0 text-sm font-medium text-slate-900 amount-el"></p>
-                </div>
+                <p class="truncate text-[15px] font-medium text-slate-900 name-el"></p>
                 <div class="mt-0.5 flex flex-col text-xs text-slate-400">
                   <div class="flex items-center gap-1.5">
                     <span>${todayLabel} · ${time} · ${record.category}</span>
@@ -2029,7 +2026,8 @@
                   <span class="italic mt-0.5 note-el"></span>
                 </div>
               </div>
-              <button type="button" class="delete-record-btn ml-3 inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-red-50 hover:text-red-500" title="删除账单" aria-label="删除账单">
+              <p class="shrink-0 mx-3 text-lg font-semibold text-slate-900 amount-el"></p>
+              <button type="button" class="delete-record-btn inline-flex h-8 w-8 items-center justify-center rounded-full text-slate-400 transition hover:bg-red-50 hover:text-red-500" title="删除账单" aria-label="删除账单">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M3 6h18" />
                   <path d="M8 6V4h8v2" />
