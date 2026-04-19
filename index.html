@@ -16,13 +16,15 @@
         theme: {
           extend: {
             colors: {
-              background: "#f5f5f7",
-              card: "#ffffff",
+              background: "#f0f2f8",
+              card: "rgba(255,255,255,0.72)",
               accent: "#007aff",
               accentSoft: "#e5f0ff",
             },
             boxShadow: {
-              soft: "0 18px 45px rgba(0, 0, 0, 0.10)",
+              // 轻飘感：柔和扩散阴影，无沉重黑边
+              soft: "0 4px 24px rgba(99,102,241,0.07), 0 1.5px 6px rgba(0,0,0,0.04)",
+              glass: "0 8px 32px rgba(99,102,241,0.10), 0 1.5px 6px rgba(0,0,0,0.04)",
             },
           },
         },
@@ -35,22 +37,25 @@
       html {
         overflow-x: hidden;
         -webkit-text-size-adjust: 100%;
-        /* 防止 iOS Safari 弹性滚动露出白边 */
-        background-color: #f5f5f7;
-        height: 100%;
+        /* 全局渐变背景：淡紫→浅蓝灰，衬托毛玻璃白卡片 */
+        background: linear-gradient(150deg, #eef0fa 0%, #e8edf8 40%, #dde9f5 100%);
+        background-attachment: fixed;
+        min-height: 100%;
       }
 
       body {
         overflow-x: hidden;
         max-width: 100%;
-        /* 禁止横向过度滚动 */
         overscroll-behavior-x: none;
-        /* iOS 动量滚动 */
         -webkit-overflow-scrolling: touch;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
           "Helvetica Neue", Helvetica, Arial, sans-serif;
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
+        /* body 继承渐变，确保 iOS Safari 弹性滚动不露白 */
+        background: linear-gradient(150deg, #eef0fa 0%, #e8edf8 40%, #dde9f5 100%);
+        background-attachment: fixed;
+        min-height: 100vh;
       }
 
       /* flex 子项默认可收缩，防止内容撑破父容器 */
@@ -318,12 +323,27 @@
       }
 
       /* ── Tab 导航栏 ─────────────────────────────────────── */
+      /* ── 通用毛玻璃卡片 ──────────────────────────────────── */
+      .glass-card {
+        background: rgba(255,255,255,0.72);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,0.60);
+        border-radius: 1.25rem;
+        box-shadow: 0 4px 24px rgba(99,102,241,0.07), 0 1.5px 6px rgba(0,0,0,0.04);
+      }
+
+      /* ── Tab 导航栏 ──────────────────────────────────────── */
       .tab-bar {
         display: flex;
-        background: rgba(0,0,0,0.05);
+        background: rgba(255,255,255,0.50);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255,255,255,0.55);
         border-radius: 1rem;
         padding: 3px;
         gap: 2px;
+        box-shadow: 0 2px 12px rgba(99,102,241,0.07);
       }
       .tab-btn {
         flex: 1;
@@ -331,7 +351,7 @@
         border-radius: 0.8125rem;
         font-size: 0.8125rem;
         font-weight: 500;
-        color: #64748b;
+        color: #475569;
         border: none;
         background: transparent;
         cursor: pointer;
@@ -339,10 +359,10 @@
         letter-spacing: -0.01em;
       }
       .tab-btn.active {
-        background: #fff;
-        color: #0f172a;
+        background: rgba(255,255,255,0.92);
+        color: #1f2937;
         font-weight: 600;
-        box-shadow: 0 1px 5px rgba(0,0,0,0.11), 0 0 0 0.5px rgba(0,0,0,0.06);
+        box-shadow: 0 1px 6px rgba(99,102,241,0.13), 0 0 0 0.5px rgba(99,102,241,0.08);
       }
 
       /* ── 加载动画 ────────────────────────────────────────── */
@@ -377,11 +397,13 @@
         justify-content: center;
         width: 2.25rem; height: 2.25rem;
         border-radius: 50%;
-        border: none;
-        background: white;
+        border: 1px solid rgba(255,255,255,0.60);
+        background: rgba(255,255,255,0.75);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
         color: #334155;
         cursor: pointer;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.09), 0 0 0 0.5px rgba(0,0,0,0.06);
+        box-shadow: 0 2px 8px rgba(99,102,241,0.08);
         transition: all 0.15s;
         flex-shrink: 0;
       }
@@ -449,12 +471,12 @@
       /* ── 预算超支：卡片背景呼吸灯 ──────────────────────────── */
       @keyframes cardBreathe {
         0%, 100% {
-          background-color: rgba(255, 255, 255, 0.75);
-          box-shadow: 0 2px 20px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+          background: rgba(255,255,255,0.72);
+          box-shadow: 0 4px 24px rgba(99,102,241,0.07), 0 1.5px 6px rgba(0,0,0,0.04);
         }
         50% {
-          background-color: rgba(255, 237, 237, 0.88);
-          box-shadow: 0 2px 28px rgba(239,68,68,0.14), 0 0 0 1.5px rgba(239,68,68,0.12);
+          background: rgba(255,237,237,0.82);
+          box-shadow: 0 4px 28px rgba(239,68,68,0.16), 0 0 0 1.5px rgba(239,68,68,0.14);
         }
       }
       .budget-card-over {
@@ -463,11 +485,12 @@
 
       /* ── 支出洞察卡片 ────────────────────────────────────── */
       .insight-glass {
-        background: linear-gradient(140deg, rgba(255,255,255,0.84) 0%, rgba(245,247,255,0.76) 100%);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
-        box-shadow: 0 2px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
-        border: 1px solid rgba(255,255,255,0.7);
+        background: linear-gradient(140deg, rgba(255,255,255,0.76) 0%, rgba(238,242,255,0.68) 100%);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 4px 24px rgba(99,102,241,0.08), 0 1.5px 6px rgba(0,0,0,0.04);
+        border: 1px solid rgba(255,255,255,0.60);
+        border-radius: 1.25rem;
       }
       .insight-badge {
         display: inline-block;
@@ -646,14 +669,14 @@
       <header class="mb-6 flex items-center justify-between gap-2 overflow-hidden">
         <!-- 左：成员徽章（可收缩，不撑宽） -->
         <div id="memberBadge" class="flex min-w-0 shrink items-center gap-1.5 overflow-hidden text-xs text-slate-500">
-          <span id="memberLabel" class="inline-block max-w-[10rem] truncate rounded-full bg-slate-200/80 px-2.5 py-1 font-medium leading-5 sm:max-w-none"></span>
+          <span id="memberLabel" class="inline-block max-w-[10rem] truncate rounded-full bg-white/65 px-2.5 py-1 font-medium leading-5 backdrop-blur-[8px] border border-white/50 text-slate-600 sm:max-w-none"></span>
           <!-- 实时状态指示点 -->
           <span id="syncDot" class="hidden h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-400" title="实时同步中"></span>
         </div>
         <!-- 右：预算（可点击） + 退出（不收缩） -->
         <div class="flex shrink-0 items-center gap-2">
           <button id="budgetDisplay"
-            class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-slate-200/80 px-2.5 py-1 text-xs text-slate-500 transition hover:bg-slate-300/70 active:scale-95"
+            class="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-white/65 px-2.5 py-1 text-xs text-slate-600 backdrop-blur-[8px] border border-white/50 transition hover:bg-white/80 active:scale-95"
             title="点击设置预算">
             <svg class="h-3 w-3 shrink-0 opacity-60" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487a2.032 2.032 0 1 1 2.872 2.872L7.5 19.5l-4 1 1-4 12.362-12.013Z"/>
@@ -670,7 +693,7 @@
 
       <div
         id="installPrompt"
-        class="mb-4 hidden items-center justify-between gap-3 overflow-hidden rounded-2xl bg-white/80 px-4 py-3 text-sm text-slate-700 shadow-soft ring-1 ring-black/5 backdrop-blur-xl"
+        class="mb-4 hidden items-center justify-between gap-3 overflow-hidden rounded-2xl bg-white/70 px-4 py-3 text-sm text-slate-700 backdrop-blur-[12px] border border-white/60 shadow-glass"
       >
         <p id="installHintText" class="min-w-0 truncate text-xs">可安装到桌面，获得更沉浸体验。</p>
         <button
@@ -698,7 +721,7 @@
           </div>
           <p class="mt-2 text-sm text-slate-500">清晰地看到你的每一笔花费。</p>
 
-          <div id="budgetCard" class="mt-6 rounded-3xl bg-white/75 p-5 shadow-xl ring-1 ring-black/5 backdrop-blur-xl">
+          <div id="budgetCard" class="mt-6 rounded-2xl bg-white/72 p-5 backdrop-blur-[12px] border border-white/60 shadow-glass">
             <div>
               <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">本月已支出</p>
               <p id="monthlyTotal" class="mt-2 text-3xl font-semibold tracking-tight text-slate-900 tabular-nums">¥ 0</p>
@@ -743,13 +766,13 @@
               </button>
             </div>
           </div>
-          <div id="expenseList" class="divide-y divide-slate-100 overflow-hidden rounded-3xl bg-card shadow-soft ring-1 ring-black/5"></div>
+          <div id="expenseList" class="divide-y divide-white/80 overflow-hidden rounded-2xl bg-white/70 backdrop-blur-[12px] border border-white/60 shadow-glass"></div>
         </section>
 
         <!-- 3. 本周支出趋势折线图 -->
         <section aria-label="本周支出趋势">
           <h2 class="mb-3 text-sm font-semibold tracking-tight text-slate-900">本周支出趋势</h2>
-          <div class="rounded-3xl bg-white/75 p-5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+          <div class="rounded-2xl bg-white/70 p-5 backdrop-blur-[12px] border border-white/60 shadow-glass">
             <div class="weekly-chart-wrap">
               <canvas id="weeklyChart"></canvas>
             </div>
@@ -759,7 +782,7 @@
         <!-- 4. 本月消费排行榜 -->
         <section aria-label="本月消费排行榜">
           <h2 class="mb-3 text-sm font-semibold tracking-tight text-slate-900">本月消费排行榜（Top 5）</h2>
-          <div class="rounded-3xl bg-white/75 p-5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+          <div class="rounded-2xl bg-white/70 p-5 backdrop-blur-[12px] border border-white/60 shadow-glass">
             <div id="monthlyRankingEmpty" class="hidden py-5 text-center text-sm text-slate-400">
               本月暂无可排行消费
             </div>
@@ -770,7 +793,7 @@
         <!-- 5. 本月支出分布饼图 -->
         <section aria-label="本月支出分布">
           <h2 class="mb-3 text-sm font-semibold tracking-tight text-slate-900">本月支出分布</h2>
-          <div class="rounded-3xl bg-white/75 p-5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+          <div class="rounded-2xl bg-white/70 p-5 backdrop-blur-[12px] border border-white/60 shadow-glass">
             <div id="chartEmpty" class="hidden flex-col items-center justify-center py-6 text-center text-sm text-slate-400">
               <svg class="mb-2 h-8 w-8 text-slate-300" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.4">
                 <circle cx="12" cy="12" r="9"/>
@@ -840,7 +863,7 @@
         <!-- 本周趋势（历史页顶部快速参考） -->
         <div>
           <h2 class="mb-3 text-sm font-semibold tracking-tight text-slate-900">本周趋势</h2>
-          <div class="rounded-3xl bg-white/75 p-4 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+          <div class="rounded-2xl bg-white/70 p-4 backdrop-blur-[12px] border border-white/60 shadow-glass">
             <div class="weekly-chart-wrap">
               <canvas id="weeklyChartHistory"></canvas>
             </div>
@@ -848,7 +871,7 @@
         </div>
 
         <!-- 月份导航 -->
-        <div class="flex items-center justify-between rounded-2xl bg-white/75 px-4 py-3.5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl">
+        <div class="flex items-center justify-between rounded-2xl bg-white/70 px-4 py-3.5 backdrop-blur-[12px] border border-white/60 shadow-glass">
           <button id="prevMonthBtn" class="month-nav-btn" title="上一个月">
             <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5"/>
@@ -868,7 +891,7 @@
         <!-- 导出数据按钮 -->
         <button id="exportCsvBtn"
           type="button"
-          class="flex w-full items-center justify-center gap-2 rounded-2xl bg-white/75 px-4 py-3 text-sm font-medium text-slate-700 shadow-soft ring-1 ring-black/5 transition hover:bg-white active:scale-[0.98]">
+          class="flex w-full items-center justify-center gap-2 rounded-2xl bg-white/70 px-4 py-3 text-sm font-semibold text-indigo-600 backdrop-blur-[12px] border border-white/60 shadow-glass transition hover:bg-white/85 active:scale-[0.97]">
           <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-accent" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <path d="M12 3v13M7 11l5 5 5-5"/>
             <path d="M5 21h14"/>
@@ -883,7 +906,7 @@
         </div>
 
         <!-- 月度汇总卡片 -->
-        <div id="historySummaryCard" class="rounded-3xl bg-white/75 p-5 shadow-soft ring-1 ring-black/5 backdrop-blur-xl transition-opacity">
+        <div id="historySummaryCard" class="rounded-2xl bg-white/70 p-5 backdrop-blur-[12px] border border-white/60 shadow-glass transition-opacity">
           <div class="flex items-start justify-between">
             <div>
               <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-400">当月总支出</p>
@@ -917,7 +940,7 @@
             <p class="mt-1 text-xs text-slate-300">家庭成员记账后将在此显示</p>
           </div>
 
-          <div id="historyExpenseList" class="divide-y divide-slate-100 overflow-hidden rounded-3xl bg-white shadow-soft ring-1 ring-black/5"></div>
+          <div id="historyExpenseList" class="divide-y divide-white/80 overflow-hidden rounded-2xl bg-white/70 backdrop-blur-[12px] border border-white/60 shadow-glass"></div>
         </section>
       </section>
       <!-- ─────────────────────────────────────────────────────────── -->
@@ -926,7 +949,8 @@
         id="fabButton"
         type="button"
         aria-label="新增一笔支出"
-        class="fab-safe fixed flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white shadow-soft shadow-black/40 ring-2 ring-white/80 transition hover:bg-slate-800 active:scale-95"
+        class="fab-safe fixed flex h-14 w-14 items-center justify-center rounded-full text-white transition active:scale-95"
+        style="background:linear-gradient(135deg,#6366f1 0%,#3b82f6 100%);box-shadow:0 8px 24px rgba(99,102,241,0.38),0 2px 8px rgba(0,0,0,0.12),inset 0 1px 0 rgba(255,255,255,0.20)"
       >
         <span class="sr-only">新增一笔支出</span>
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
@@ -942,7 +966,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="modalTitle"
-      class="fixed inset-x-0 bottom-0 z-50 hidden rounded-t-3xl bg-white/90 p-5 shadow-soft backdrop-blur-xl ring-1 ring-black/5 sm:mx-auto sm:bottom-8 sm:max-w-md sm:rounded-3xl"
+      class="fixed inset-x-0 bottom-0 z-50 hidden rounded-t-2xl bg-white/85 p-5 backdrop-blur-[16px] border border-white/70 shadow-glass sm:mx-auto sm:bottom-8 sm:max-w-md sm:rounded-2xl"
     >
       <div class="mb-4 flex items-center justify-between">
         <h3 id="modalTitle" class="text-base font-semibold tracking-tight text-slate-900">新增消费</h3>
