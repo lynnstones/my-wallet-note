@@ -1580,19 +1580,73 @@
 
         // ── 数字滚动动画 ────────────────────────────────────────────
         // 从 DOM 元素当前显示值平滑过渡到目标值（不依赖外部变量）
-        function animateNumber(el, toVal, duration = 650) {
-          const raw = (el.textContent || "0").replace(/[^\d.]/g, "");
-          const fromVal = parseFloat(raw) || 0;
-          if (Math.abs(fromVal - toVal) < 1) { el.textContent = formatMoney(toVal); return; }
+        // ─────────────────────────────────────────────────────────
+        // 数字滚动动画配置（可在此直接修改进行测试）
+        // ROLL_DURATION_MS : 动画总时长（毫秒），推荐 600-1200
+        // ROLL_FROM_ZERO   : true = 每次从 0 起滚；false = 从当前显示值接力滚
+        // ─────────────────────────────────────────────────────────
+        const ROLL_DURATION_MS = 1000;
+        const ROLL_FROM_ZERO   = true;
+
+        // 追踪每个元素正在运行的动画 ID，防止同一元素多帧叠加
+        const _rollFrames = new WeakMap();
+
+        function animateNumber(el, toVal, duration = ROLL_DURATION_MS) {
+          // 取当前显示值作为起始值（或根据配置强制从 0）
+          const raw      = (el.textContent || "0").replace(/[^\d.]/g, "");
+          const fromVal  = ROLL_FROM_ZERO ? 0 : (parseFloat(raw) || 0);
+
+          // 差值极小时直接写入，不启动动画
+          if (Math.abs(fromVal - toVal) < 0.5) {
+            el.textContent = formatMoney(toVal);
+            return;
+          }
+
+          // 取消该元素之前尚未完成的动画帧
+          const prev = _rollFrames.get(el);
+          if (prev) cancelAnimationFrame(prev);
+
+          const startTime = performance.now();
+
+          function tick(now) {
+            const elapsed = now - startTime;
+            const t = Math.min(elapsed / duration, 1);
+
+            // easeOutExpo：开头快、末尾平稳落定，千分位逗号效果最佳
+            const ease = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+
+            const current = fromVal + (toVal - fromVal) * ease;
+            // 实时格式化带千分位逗号
+            el.textContent = "¥ " + Math.round(current).toLocaleString("zh-CN");
+
+            if (t < 1) {
+              _rollFrames.set(el, requestAnimationFrame(tick));
+            } else {
+              // 动画结束写入精确值
+              el.textContent = formatMoney(toVal);
+              _rollFrames.delete(el);
+            }
+          }
+
+          _rollFrames.set(el, requestAnimationFrame(tick));
+        }
+
+        // animateNumber 的无前缀版本（用于剩余额度等不带 ¥ 前缀的场景）
+        function animateNumberRaw(el, toVal, formatter, duration = ROLL_DURATION_MS) {
+          const raw     = (el.textContent || "0").replace(/[^\d.]/g, "");
+          const fromVal = ROLL_FROM_ZERO ? 0 : (parseFloat(raw) || 0);
+          if (Math.abs(fromVal - toVal) < 0.5) { el.textContent = formatter(toVal); return; }
+          const prev = _rollFrames.get(el);
+          if (prev) cancelAnimationFrame(prev);
           const startTime = performance.now();
           function tick(now) {
             const t = Math.min((now - startTime) / duration, 1);
-            const ease = 1 - Math.pow(1 - t, 3); // cubic-ease-out
-            el.textContent = "¥ " + Math.round(fromVal + (toVal - fromVal) * ease).toLocaleString("zh-CN");
-            if (t < 1) requestAnimationFrame(tick);
-            else el.textContent = formatMoney(toVal);
+            const ease = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
+            el.textContent = formatter(Math.round(fromVal + (toVal - fromVal) * ease));
+            if (t < 1) { _rollFrames.set(el, requestAnimationFrame(tick)); }
+            else { el.textContent = formatter(toVal); _rollFrames.delete(el); }
           }
-          requestAnimationFrame(tick);
+          _rollFrames.set(el, requestAnimationFrame(tick));
         }
 
         // ── 环比单行摘要（余额卡内精致小字） ────────────────────────
@@ -1812,9 +1866,12 @@
         }
 
         function updateSummary() {
+          // 本月总支出：大字滚动
           animateNumber(totalEl, totalSpent);
-          remainingEl.textContent = formatMoney(Math.max(0, budget - totalSpent));
-          budgetValueEl.textContent = budget.toLocaleString("zh-CN");
+          // 剩余额度：带 ¥ 格式
+          animateNumber(remainingEl, Math.max(0, budget - totalSpent));
+          // 顶部预算徽章（纯数字，不带 ¥）
+          animateNumberRaw(budgetValueEl, budget, (v) => v.toLocaleString("zh-CN"));
 
           // 预算进度条 + 警告标签 + 卡片呼吸灯
           const bar        = document.getElementById("budgetProgressBar");
