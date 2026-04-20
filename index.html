@@ -10,6 +10,7 @@
     <link rel="apple-touch-icon" href="./wallet-512.png?v=4" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
     <script>
       tailwind.config = {
@@ -520,10 +521,11 @@
       /* ── 本周折线图容器 ──────────────────────────────────── */
       .weekly-chart-wrap {
         position: relative;
-        height: 110px;
+        /* 多出高度留给顶部金额标注 + 底部双行 X 轴 */
+        height: 148px;
       }
       @media (min-width: 640px) {
-        .weekly-chart-wrap { height: 130px; }
+        .weekly-chart-wrap { height: 168px; }
       }
 
       /* ── 登录屏家庭列表同步状态 ─────────────────────────── */
@@ -1341,6 +1343,7 @@
                 animation: { animateRotate: true, duration: 600, easing: "easeInOutQuart" },
                 plugins: {
                   legend: { display: false },
+                  datalabels: { display: false },
                   tooltip: {
                     backgroundColor: "rgba(255,255,255,0.92)",
                     titleColor: "#0f172a",
@@ -1431,57 +1434,87 @@
         let weeklyChartInst = null;
         let weeklyChartHistInst = null;
 
-        function buildWeeklyChartConfig(values, labels) {
-          const dark      = window.matchMedia("(prefers-color-scheme: dark)").matches;
-          const lineColor = "#3b82f6";
-          const fillColor = dark ? "rgba(59,130,246,0.12)" : "rgba(59,130,246,0.07)";
-          const gridColor = dark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
-          const tickColor = dark ? "rgba(255,255,255,0.38)" : "#94a3b8";
-          const tooltipBg = dark ? "rgba(30,41,59,0.95)"   : "rgba(255,255,255,0.96)";
-          const tooltipFg = dark ? "#e2e8f0" : "#0f172a";
-          const tooltipSub= dark ? "#94a3b8" : "#475569";
+        // 注册 datalabels 插件（仅对折线图生效，其他图表通过 plugins.datalabels.display:false 关闭）
+        if (typeof ChartDataLabels !== "undefined") {
+          Chart.register(ChartDataLabels);
+        }
+
+        function buildWeeklyChartConfig(values, xLabels) {
+          const lineColor = "#6366f1";
+          const fillColor = "rgba(99,102,241,0.07)";
+          const gridColor = "rgba(0,0,0,0.04)";
+          const tickColor = "#94a3b8";
+          const tooltipBg = "rgba(255,255,255,0.96)";
+          const tooltipFg = "#0f172a";
+          const tooltipSub= "#475569";
           return {
             type: "line",
             data: {
-              labels,
+              labels: xLabels,
               datasets: [{
                 data: values,
                 borderColor: lineColor,
                 backgroundColor: fillColor,
                 borderWidth: 2,
-                pointBackgroundColor: lineColor,
-                pointBorderColor: dark ? "#1e293b" : "#fff",
+                pointBackgroundColor: xLabels.map((_, i) => values[i] > 0 ? lineColor : "rgba(99,102,241,0.25)"),
+                pointBorderColor: "#fff",
                 pointBorderWidth: 2,
-                pointRadius: 4,
-                pointHoverRadius: 6,
+                pointRadius: 5,
+                pointHoverRadius: 7,
                 fill: true,
-                tension: 0.4,
+                tension: 0.42,
               }],
             },
             options: {
               responsive: true,
               maintainAspectRatio: false,
               animation: { duration: 700, easing: "easeInOutQuart" },
+              layout: { padding: { top: 28 } },
               plugins: {
                 legend: { display: false },
                 tooltip: {
                   backgroundColor: tooltipBg,
                   titleColor: tooltipFg,
                   bodyColor: tooltipSub,
-                  borderColor: dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+                  borderColor: "rgba(0,0,0,0.06)",
                   borderWidth: 1,
                   padding: 10,
                   cornerRadius: 12,
-                  callbacks: { label: (ctx) => ` ¥ ${ctx.parsed.y.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}` },
+                  callbacks: {
+                    label: (ctx) => ` ¥ ${ctx.parsed.y.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}`,
+                  },
+                },
+                // 每个数据点上方标注金额（0 不显示）
+                datalabels: {
+                  display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+                  anchor: "end",
+                  align: "top",
+                  offset: 2,
+                  color: "#4f46e5",
+                  font: { size: 10, weight: "600" },
+                  formatter: (v) => v >= 1000
+                    ? "¥" + (v / 1000).toFixed(1) + "k"
+                    : "¥" + Math.round(v),
                 },
               },
               scales: {
-                x: { grid: { display: false }, ticks: { font: { size: 11 }, color: tickColor } },
+                x: {
+                  grid: { display: false },
+                  ticks: {
+                    font: { size: 10 },
+                    color: tickColor,
+                    maxRotation: 0,
+                    // 返回数组实现两行显示：[星期几, 月/日]
+                    callback(_, idx) {
+                      return xLabels[idx] ?? "";
+                    },
+                  },
+                },
                 y: {
                   grid: { color: gridColor, drawTicks: false },
                   border: { display: false },
                   ticks: {
-                    font: { size: 11 }, color: tickColor, maxTicksLimit: 4,
+                    font: { size: 10 }, color: tickColor, maxTicksLimit: 4,
                     callback: (v) => v === 0 ? "0" : (v >= 1000 ? "¥" + (v / 1000).toFixed(1) + "k" : "¥" + v),
                   },
                   beginAtZero: true,
@@ -1498,12 +1531,18 @@
           startOfWeek.setDate(now.getDate() - (dow === 0 ? 6 : dow - 1));
           startOfWeek.setHours(0, 0, 0, 0);
 
-          const DAY_LABELS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+          const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
           const dayKeys = [], values = new Array(7).fill(0);
+          // 每列标签：["周一", "3/10"] 两行显示
+          const xLabels = [];
           for (let i = 0; i < 7; i++) {
             const d = new Date(startOfWeek);
             d.setDate(startOfWeek.getDate() + i);
             dayKeys.push(getDateKey(d));
+            xLabels.push([
+              DAY_NAMES[i],
+              `${d.getMonth() + 1}/${d.getDate()}`,
+            ]);
           }
           addedExpenses.forEach((item) => {
             const idx = dayKeys.indexOf(getDateKey(new Date(item.timestamp)));
@@ -1514,10 +1553,13 @@
           const canvas = document.getElementById("weeklyChart");
           if (canvas) {
             if (weeklyChartInst) {
+              weeklyChartInst.data.labels = xLabels;
               weeklyChartInst.data.datasets[0].data = values;
+              weeklyChartInst.data.datasets[0].pointBackgroundColor =
+                values.map((v) => v > 0 ? "#6366f1" : "rgba(99,102,241,0.25)");
               weeklyChartInst.update("active");
             } else {
-              weeklyChartInst = new Chart(canvas, buildWeeklyChartConfig(values, DAY_LABELS));
+              weeklyChartInst = new Chart(canvas, buildWeeklyChartConfig(values, xLabels));
             }
           }
 
@@ -1525,10 +1567,13 @@
           const canvasHist = document.getElementById("weeklyChartHistory");
           if (canvasHist) {
             if (weeklyChartHistInst) {
+              weeklyChartHistInst.data.labels = xLabels;
               weeklyChartHistInst.data.datasets[0].data = values;
+              weeklyChartHistInst.data.datasets[0].pointBackgroundColor =
+                values.map((v) => v > 0 ? "#6366f1" : "rgba(99,102,241,0.25)");
               weeklyChartHistInst.update("active");
             } else {
-              weeklyChartHistInst = new Chart(canvasHist, buildWeeklyChartConfig(values, DAY_LABELS));
+              weeklyChartHistInst = new Chart(canvasHist, buildWeeklyChartConfig(values, xLabels));
             }
           }
         }
