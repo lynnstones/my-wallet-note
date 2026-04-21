@@ -1439,12 +1439,13 @@
           Chart.register(ChartDataLabels);
         }
 
-        function buildWeeklyChartConfig(values, xLabels) {
+        // dayCats: 长度 7 的数组，每项是 { 分类: 金额 } 对象
+        function buildWeeklyChartConfig(values, xLabels, dayCats) {
           const lineColor = "#6366f1";
           const fillColor = "rgba(99,102,241,0.07)";
           const gridColor = "rgba(0,0,0,0.04)";
           const tickColor = "#94a3b8";
-          const tooltipBg = "rgba(255,255,255,0.96)";
+          const tooltipBg = "rgba(255,255,255,0.97)";
           const tooltipFg = "#0f172a";
           const tooltipSub= "#475569";
           return {
@@ -1453,10 +1454,12 @@
               labels: xLabels,
               datasets: [{
                 data: values,
+                // dayCats 挂在 dataset 上，tooltip 里通过 ctx.dataset 取到
+                dayCats,
                 borderColor: lineColor,
                 backgroundColor: fillColor,
                 borderWidth: 2,
-                pointBackgroundColor: xLabels.map((_, i) => values[i] > 0 ? lineColor : "rgba(99,102,241,0.25)"),
+                pointBackgroundColor: values.map((v) => v > 0 ? lineColor : "rgba(99,102,241,0.25)"),
                 pointBorderColor: "#fff",
                 pointBorderWidth: 2,
                 pointRadius: 5,
@@ -1476,15 +1479,42 @@
                   backgroundColor: tooltipBg,
                   titleColor: tooltipFg,
                   bodyColor: tooltipSub,
-                  borderColor: "rgba(0,0,0,0.06)",
+                  borderColor: "rgba(0,0,0,0.08)",
                   borderWidth: 1,
-                  padding: 10,
-                  cornerRadius: 12,
+                  padding: { top: 10, bottom: 10, left: 12, right: 12 },
+                  cornerRadius: 14,
                   callbacks: {
-                    label: (ctx) => ` ¥ ${ctx.parsed.y.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}`,
+                    // 标题：星期 + 日期（xLabels 是 [星期, 月/日] 数组）
+                    title(items) {
+                      const lbl = items[0].label;
+                      return Array.isArray(lbl) ? lbl.join("  ") : lbl;
+                    },
+                    // 第一行：当日总额
+                    label(ctx) {
+                      const total = ctx.parsed.y;
+                      return total > 0
+                        ? ` 合计  ¥ ${total.toLocaleString("zh-CN", { maximumFractionDigits: 0 })}`
+                        : " 当日无消费";
+                    },
+                    // 分类明细：按金额降序，各占一行
+                    afterBody(items) {
+                      const idx = items[0].dataIndex;
+                      const cats = items[0].dataset.dayCats?.[idx] ?? {};
+                      const sorted = Object.entries(cats)
+                        .filter(([, v]) => v > 0)
+                        .sort((a, b) => b[1] - a[1]);
+                      if (!sorted.length) return [];
+                      return [
+                        "──────────────",
+                        ...sorted.map(([cat, amt]) => {
+                          const emoji = categoryConfig[cat]?.emoji ?? "📦";
+                          const amtStr = amt.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+                          return ` ${emoji} ${cat}   ¥ ${amtStr}`;
+                        }),
+                      ];
+                    },
                   },
                 },
-                // 每个数据点上方标注金额（0 不显示）
                 datalabels: {
                   display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
                   anchor: "end",
@@ -1504,10 +1534,7 @@
                     font: { size: 10 },
                     color: tickColor,
                     maxRotation: 0,
-                    // 返回数组实现两行显示：[星期几, 月/日]
-                    callback(_, idx) {
-                      return xLabels[idx] ?? "";
-                    },
+                    callback(_, idx) { return xLabels[idx] ?? ""; },
                   },
                 },
                 y: {
@@ -1532,22 +1559,29 @@
           startOfWeek.setHours(0, 0, 0, 0);
 
           const DAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-          const dayKeys = [], values = new Array(7).fill(0);
-          // 每列标签：["周一", "3/10"] 两行显示
+          const dayKeys = [];
+          const values  = new Array(7).fill(0);
+          // 每天各分类小计：长度 7，每项 { 餐饮: 38, 交通: 12, … }
+          const dayCats = Array.from({ length: 7 }, () => ({}));
           const xLabels = [];
+
           for (let i = 0; i < 7; i++) {
             const d = new Date(startOfWeek);
             d.setDate(startOfWeek.getDate() + i);
             dayKeys.push(getDateKey(d));
-            xLabels.push([
-              DAY_NAMES[i],
-              `${d.getMonth() + 1}/${d.getDate()}`,
-            ]);
+            xLabels.push([DAY_NAMES[i], `${d.getMonth() + 1}/${d.getDate()}`]);
           }
+
           addedExpenses.forEach((item) => {
             const idx = dayKeys.indexOf(getDateKey(new Date(item.timestamp)));
-            if (idx !== -1) values[idx] += Number(item.amount);
+            if (idx === -1) return;
+            const amt = Number(item.amount);
+            values[idx] += amt;
+            const cat = item.category || "其他";
+            dayCats[idx][cat] = (dayCats[idx][cat] || 0) + amt;
           });
+
+          const ptColors = values.map((v) => v > 0 ? "#6366f1" : "rgba(99,102,241,0.25)");
 
           // ── 主视图折线图 ──
           const canvas = document.getElementById("weeklyChart");
@@ -1555,11 +1589,11 @@
             if (weeklyChartInst) {
               weeklyChartInst.data.labels = xLabels;
               weeklyChartInst.data.datasets[0].data = values;
-              weeklyChartInst.data.datasets[0].pointBackgroundColor =
-                values.map((v) => v > 0 ? "#6366f1" : "rgba(99,102,241,0.25)");
+              weeklyChartInst.data.datasets[0].dayCats = dayCats;
+              weeklyChartInst.data.datasets[0].pointBackgroundColor = ptColors;
               weeklyChartInst.update("active");
             } else {
-              weeklyChartInst = new Chart(canvas, buildWeeklyChartConfig(values, xLabels));
+              weeklyChartInst = new Chart(canvas, buildWeeklyChartConfig(values, xLabels, dayCats));
             }
           }
 
@@ -1569,11 +1603,11 @@
             if (weeklyChartHistInst) {
               weeklyChartHistInst.data.labels = xLabels;
               weeklyChartHistInst.data.datasets[0].data = values;
-              weeklyChartHistInst.data.datasets[0].pointBackgroundColor =
-                values.map((v) => v > 0 ? "#6366f1" : "rgba(99,102,241,0.25)");
+              weeklyChartHistInst.data.datasets[0].dayCats = dayCats;
+              weeklyChartHistInst.data.datasets[0].pointBackgroundColor = ptColors;
               weeklyChartHistInst.update("active");
             } else {
-              weeklyChartHistInst = new Chart(canvasHist, buildWeeklyChartConfig(values, xLabels));
+              weeklyChartHistInst = new Chart(canvasHist, buildWeeklyChartConfig(values, xLabels, dayCats));
             }
           }
         }
