@@ -3128,6 +3128,11 @@
           historyView.classList.add("hidden");
           historyView.classList.remove("flex");
           fabButton.classList.remove("hidden");
+          // 切回首页后重新触发数字滚动动画（元素此时已可见）
+          requestAnimationFrame(() => {
+            updateSummary();
+            updateWeeklyChart();
+          });
         });
 
         tabHistoryBtn.addEventListener("click", () => {
