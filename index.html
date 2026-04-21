@@ -2184,7 +2184,10 @@
 
           const recordDate = new Date(record.timestamp);
           const time = recordDate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-          const todayLabel = getDateKey(recordDate) === getDateKey(new Date()) ? "今天" : "此前";
+          const isToday = getDateKey(recordDate) === getDateKey(new Date());
+          const todayLabel = isToday
+            ? "今天"
+            : `${recordDate.getMonth() + 1}月${recordDate.getDate()}日`;
           const config = categoryConfig[record.category] || categoryConfig["其他"];
           const memberTag = record.member ? `来自 ${record.member}` : "";
 
