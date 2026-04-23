@@ -323,7 +323,47 @@
         box-shadow: 0 0 0 4px rgba(0,122,255,0.12);
       }
 
-      /* ── Tab 导航栏 ─────────────────────────────────────── */
+      /* ── 分类格子 Q弹动效 ──────────────────────────────── */
+      /* 按下 0.9 → 松开弹到 1.1 → 回落 1.0，手感饱满 */
+      @keyframes cat-bounce {
+        0%   { transform: scale(1);    }
+        28%  { transform: scale(0.90); }
+        60%  { transform: scale(1.12); }
+        80%  { transform: scale(0.97); }
+        100% { transform: scale(1);    }
+      }
+      .cat-tapped {
+        animation: cat-bounce 0.38s cubic-bezier(.36,.07,.19,.97) both;
+      }
+
+      /* ── 按钮轻压反馈（保存、导出、删除等） ──────────── */
+      /* 快速压下 → 微弹 → 回原位，让用户明确感知触发 */
+      @keyframes btn-press {
+        0%   { transform: scale(1);    }
+        35%  { transform: scale(0.95); }
+        65%  { transform: scale(1.03); }
+        100% { transform: scale(1);    }
+      }
+      .btn-pressed {
+        animation: btn-press 0.28s cubic-bezier(.36,.07,.19,.97) both;
+      }
+
+      /* ── 全局平滑过渡（颜色、背景、阴影切换无突跳） ── */
+      /* 刻意排除 transform，避免和上面的 keyframe 动画冲突 */
+      .glass-card,
+      .tab-btn,
+      .month-nav-btn,
+      .cat-option,
+      .delete-record-btn {
+        transition:
+          background-color 0.25s ease,
+          border-color     0.25s ease,
+          box-shadow       0.25s ease,
+          opacity          0.25s ease,
+          color            0.2s  ease;
+      }
+
+      /* Tab 导航栏 ─────────────────────────────────────── */
       /* ── 通用毛玻璃卡片 ──────────────────────────────────── */
       .glass-card {
         background: rgba(255,255,255,0.72);
@@ -984,7 +1024,7 @@
             <!-- 支出类：浅红底 -->
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="餐饮" class="peer sr-only" checked>
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all duration-150 active:scale-95">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
                 <span class="text-xl leading-none">🍔</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">餐饮</span>
               </div>
@@ -992,7 +1032,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="交通" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all duration-150 active:scale-95">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
                 <span class="text-xl leading-none">🚗</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">交通</span>
               </div>
@@ -1000,7 +1040,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="购物" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all duration-150 active:scale-95">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
                 <span class="text-xl leading-none">🛍️</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">购物</span>
               </div>
@@ -1008,7 +1048,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="娱乐" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all duration-150 active:scale-95">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
                 <span class="text-xl leading-none">🎮</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">娱乐</span>
               </div>
@@ -1016,7 +1056,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="医疗" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all duration-150 active:scale-95">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
                 <span class="text-xl leading-none">💊</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">医疗</span>
               </div>
@@ -1024,7 +1064,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="居家" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all duration-150 active:scale-95">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
                 <span class="text-xl leading-none">🏠</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">居家</span>
               </div>
@@ -1032,7 +1072,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="其他" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all duration-150 active:scale-95">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
                 <span class="text-xl leading-none">📦</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">其他</span>
               </div>
@@ -1041,7 +1081,7 @@
             <!-- 支出类 -->
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="通讯" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5 transition-all duration-150 active:scale-95">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
                 <span class="text-xl leading-none">📱</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">通讯</span>
               </div>
@@ -1093,8 +1133,9 @@
           />
         </div>
         <button
+          id="saveExpenseBtn"
           type="submit"
-          class="mt-2 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white transition hover:bg-slate-800 active:scale-[0.99]"
+          class="mt-2 inline-flex w-full items-center justify-center rounded-2xl bg-slate-900 px-4 py-3 text-sm font-medium text-white hover:bg-slate-800"
         >
           确定添加
         </button>
@@ -2272,6 +2313,13 @@
             noteEl.remove();
           }
           const delBtn = article.querySelector(".delete-record-btn");
+          // 删除按钮：轻压反馈动画
+          delBtn.addEventListener("pointerdown", () => {
+            delBtn.classList.remove("btn-pressed");
+            void delBtn.offsetWidth;
+            delBtn.classList.add("btn-pressed");
+          });
+          delBtn.addEventListener("animationend", () => delBtn.classList.remove("btn-pressed"));
           delBtn.addEventListener("click", async (e) => {
             e.preventDefault();
             e.stopPropagation();
@@ -3167,6 +3215,41 @@
         jumpToCurrentBtn.addEventListener("click", () => {
           historyDate = { ...NOW_YM };
           loadHistoryMonth(historyDate.year, historyDate.month);
+        });
+
+        // ══════════════════════════════════════════════════════════
+        // 点击触感反馈初始化
+        // ══════════════════════════════════════════════════════════
+
+        // 辅助：给元素绑定一次性 pointerdown → 添加动画 class，
+        // animationend 后自动移除，确保下次点击可以重新触发
+        function bindPressAnim(el, cls) {
+          if (!el) return;
+          el.addEventListener("pointerdown", () => {
+            el.classList.remove(cls);
+            // 强制 reflow 使 class 移除后再重新添加，保证每次都能触发
+            void el.offsetWidth;
+            el.classList.add(cls);
+          });
+          el.addEventListener("animationend", () => el.classList.remove(cls));
+        }
+
+        // 1. 保存按钮
+        bindPressAnim(document.getElementById("saveExpenseBtn"), "btn-pressed");
+
+        // 2. 导出按钮
+        bindPressAnim(document.getElementById("exportCsvBtn"), "btn-pressed");
+
+        // 3. 分类格子：Q弹动效（绑定所有 .cat-label 下的 .cat-option）
+        document.querySelectorAll(".cat-label").forEach((label) => {
+          const optEl = label.querySelector(".cat-option");
+          if (!optEl) return;
+          label.addEventListener("pointerdown", () => {
+            optEl.classList.remove("cat-tapped");
+            void optEl.offsetWidth;
+            optEl.classList.add("cat-tapped");
+          });
+          optEl.addEventListener("animationend", () => optEl.classList.remove("cat-tapped"));
         });
 
         // ── 导出全部账单为 CSV ────────────────────────────────────
