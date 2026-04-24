@@ -324,43 +324,46 @@
       }
 
       /* ── 分类格子 Q弹动效 ──────────────────────────────── */
-      /* 按下 0.9 → 松开弹到 1.1 → 回落 1.0，手感饱满 */
+      /* 按下压缩 → 弹出略超 → ease-out 减速落定，峰值 1.07 不晃眼 */
       @keyframes cat-bounce {
         0%   { transform: scale(1);    }
-        28%  { transform: scale(0.90); }
-        60%  { transform: scale(1.12); }
-        80%  { transform: scale(0.97); }
+        25%  { transform: scale(0.90); }
+        58%  { transform: scale(1.07); }
+        78%  { transform: scale(0.98); }
         100% { transform: scale(1);    }
       }
       .cat-tapped {
-        animation: cat-bounce 0.38s cubic-bezier(.36,.07,.19,.97) both;
+        /* ease-out 控制整体节奏：按下快、弹回自然减速 */
+        animation: cat-bounce 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
       }
 
       /* ── 按钮轻压反馈（保存、导出、删除等） ──────────── */
-      /* 快速压下 → 微弹 → 回原位，让用户明确感知触发 */
+      /* 压下快（35%完成）→ 微弹 → ease-out 平稳落定 */
       @keyframes btn-press {
         0%   { transform: scale(1);    }
-        35%  { transform: scale(0.95); }
-        65%  { transform: scale(1.03); }
+        30%  { transform: scale(0.95); }
+        65%  { transform: scale(1.02); }
         100% { transform: scale(1);    }
       }
       .btn-pressed {
-        animation: btn-press 0.28s cubic-bezier(.36,.07,.19,.97) both;
+        /* 0.3s，不拖泥带水，ease-out 让落定柔和 */
+        animation: btn-press 0.30s cubic-bezier(0.22, 1, 0.36, 1) both;
       }
 
       /* ── 全局平滑过渡（颜色、背景、阴影切换无突跳） ── */
-      /* 刻意排除 transform，避免和上面的 keyframe 动画冲突 */
+      /* 刻意排除 transform，避免和 keyframe 动画冲突        */
+      /* cubic-bezier(0.22,1,0.36,1) = iOS 弹性 ease-out  */
       .glass-card,
       .tab-btn,
       .month-nav-btn,
       .cat-option,
       .delete-record-btn {
         transition:
-          background-color 0.25s ease,
-          border-color     0.25s ease,
-          box-shadow       0.25s ease,
-          opacity          0.25s ease,
-          color            0.2s  ease;
+          background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+          border-color     0.22s cubic-bezier(0.22, 1, 0.36, 1),
+          box-shadow       0.28s cubic-bezier(0.22, 1, 0.36, 1),
+          opacity          0.22s cubic-bezier(0.22, 1, 0.36, 1),
+          color            0.18s cubic-bezier(0.22, 1, 0.36, 1);
       }
 
       /* Tab 导航栏 ─────────────────────────────────────── */
@@ -396,7 +399,10 @@
         border: none;
         background: transparent;
         cursor: pointer;
-        transition: all 0.18s ease;
+        transition:
+          background-color 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+          color            0.18s cubic-bezier(0.22, 1, 0.36, 1),
+          box-shadow       0.28s cubic-bezier(0.22, 1, 0.36, 1);
         letter-spacing: -0.01em;
       }
       .tab-btn.active {
@@ -552,11 +558,12 @@
       }
 
       /* ── 卡片淡入上移入场动画 ───────────────────────────── */
+      /* 位移 10px，时长 0.6s，iOS 弹性 ease-out（先快后慢，有空气感） */
       @keyframes fadeInUp {
         from { opacity: 0; transform: translateY(10px); }
         to   { opacity: 1; transform: translateY(0); }
       }
-      .fade-in-up { animation: fadeInUp 0.4s cubic-bezier(0.4,0,0.2,1) both; }
+      .fade-in-up { animation: fadeInUp 0.6s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
       /* ── 本周折线图容器 ──────────────────────────────────── */
       .weekly-chart-wrap {
@@ -611,7 +618,8 @@
         border-radius: 99px;
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
-        transition: opacity 0.22s ease, transform 0.22s ease;
+        transition: opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+                    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
         pointer-events: none;
         z-index: 300;
         white-space: nowrap;
@@ -2268,7 +2276,7 @@
 
           article.innerHTML = `
             <div class="swipe-delete-bg pointer-events-none absolute inset-0 hidden items-center justify-end bg-red-50/80 pr-4">
-              <div class="swipe-delete-icon flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-500 transition-all duration-150" style="opacity:0; transform:translateX(16px);">
+              <div class="swipe-delete-icon flex h-8 w-8 items-center justify-center rounded-full bg-red-100 text-red-500" style="opacity:0; transform:translateX(16px); transition: opacity 0.2s cubic-bezier(0.22,1,0.36,1), transform 0.2s cubic-bezier(0.22,1,0.36,1);">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M3 6h18" />
                   <path d="M8 6V4h8v2" />
@@ -2331,7 +2339,7 @@
             let startY = 0;
             let swiping = false;
             let triggered = false;
-            rowContentEl.style.transition = "transform 0.16s ease";
+            rowContentEl.style.transition = "transform 0.18s cubic-bezier(0.22,1,0.36,1)";
             swipeBgEl.classList.remove("hidden");
             swipeBgEl.classList.add("flex");
 
@@ -2365,6 +2373,8 @@
               swiping = false;
               const matrix = new DOMMatrixReadOnly(getComputedStyle(rowContentEl).transform);
               const currentX = matrix.m41 || 0;
+              // 回弹用稍长的 ease-out，让手指松开后有弹性收回感
+              rowContentEl.style.transition = "transform 0.28s cubic-bezier(0.22, 1, 0.36, 1)";
               rowContentEl.style.transform = "translateX(0px)";
               swipeIconEl.style.opacity = "0";
               swipeIconEl.style.transform = "translateX(16px)";
