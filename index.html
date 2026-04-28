@@ -423,6 +423,64 @@
         flex-shrink: 0;
       }
 
+      /* ── 历史页搜索框 ───────────────────────────────────── */
+      .history-search-input {
+        width: 100%;
+        padding: 0.625rem 0.875rem 0.625rem 2.5rem; /* 左留图标空间 */
+        font-size: 0.875rem;
+        color: #1f2937;
+        background: rgba(255,255,255,0.70);
+        border: 1px solid rgba(255,255,255,0.60);
+        border-radius: 999px;
+        outline: none;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        transition:
+          border-color  0.22s cubic-bezier(0.22,1,0.36,1),
+          box-shadow    0.22s cubic-bezier(0.22,1,0.36,1);
+      }
+      .history-search-input::placeholder { color: #94a3b8; }
+      .history-search-input:focus {
+        border-color: rgba(99,102,241,0.50);
+        box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+      }
+
+      /* ── 历史页分类胶囊 Chips ───────────────────────────── */
+      .cat-chip {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        padding: 0.3rem 0.75rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 500;
+        background: rgba(255,255,255,0.70);
+        border: 1px solid rgba(255,255,255,0.60);
+        color: #475569;
+        cursor: pointer;
+        white-space: nowrap;
+        transition:
+          background-color 0.2s cubic-bezier(0.22,1,0.36,1),
+          border-color     0.2s cubic-bezier(0.22,1,0.36,1),
+          color            0.2s cubic-bezier(0.22,1,0.36,1);
+        -webkit-tap-highlight-color: transparent;
+      }
+      .cat-chip.active {
+        background: #6366f1;
+        border-color: #6366f1;
+        color: #fff;
+      }
+      /* 胶囊列横向滚动，隐藏滚动条 */
+      .cat-chips-row {
+        display: flex;
+        gap: 0.375rem;
+        overflow-x: auto;
+        padding-bottom: 2px; /* 防止 box-shadow 被裁切 */
+        scrollbar-width: none;
+      }
+      .cat-chips-row::-webkit-scrollbar { display: none; }
+
       /* ── 历史账单分类进度条 ──────────────────────────────── */
       .cat-bar-track {
         height: 5px;
@@ -555,6 +613,38 @@
       .insight-badge.warn {
         background: rgba(239,68,68,0.1);
         color: #dc2626;
+      }
+
+      /* ── 骨架屏 Shimmer ─────────────────────────────────── */
+      /* 光影从左向右扫过，营造"数据正在赶来"的感觉 */
+      @keyframes sk-shimmer {
+        0%   { background-position: -600px 0; }
+        100% { background-position:  600px 0; }
+      }
+      /* 通用骨架块：套在任意尺寸的 div 上即可 */
+      .sk {
+        border-radius: 6px;
+        background:
+          linear-gradient(
+            90deg,
+            rgba(241,245,249,0.95) 25%,
+            rgba(212,220,233,0.70) 50%,
+            rgba(241,245,249,0.95) 75%
+          );
+        background-size: 1200px 100%;
+        animation: sk-shimmer 1.6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+      }
+
+      /* ── 空状态（无数据时展示） ─────────────────────────── */
+      .empty-state-icon {
+        width:  56px;
+        height: 56px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #eef2ff 0%, #ede9fe 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
       }
 
       /* ── 卡片淡入上移入场动画 ───────────────────────────── */
@@ -817,6 +907,21 @@
             </div>
           </div>
           <div id="expenseList" class="divide-y divide-white/80 overflow-hidden rounded-2xl bg-white/70 backdrop-blur-[12px] border border-white/60 shadow-glass"></div>
+
+          <!-- 空状态：当月无消费时展示 -->
+          <div id="expenseEmptyState" class="hidden flex-col items-center justify-center rounded-2xl bg-white/70 backdrop-blur-[12px] border border-white/60 shadow-glass py-12 px-6 text-center">
+            <div class="empty-state-icon">
+              <!-- 钱包图标 -->
+              <svg class="h-7 w-7 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-2"/>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 12a2 2 0 0 1 2-2h3v4h-3a2 2 0 0 1-2-2Z"/>
+              </svg>
+            </div>
+            <p class="text-sm font-semibold text-slate-700">这个月还没有记录</p>
+            <p class="mt-1.5 text-xs leading-relaxed text-slate-400">
+              点击右下角&nbsp;<span class="inline-block rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-500">＋</span>&nbsp;开始记录<br>第一笔账单吧 ✦
+            </p>
+          </div>
         </section>
 
         <!-- 3. 本周支出趋势折线图 -->
@@ -978,9 +1083,31 @@
 
         <!-- 账单明细列表 -->
         <section>
-          <h2 class="mb-3 text-sm font-semibold tracking-tight text-slate-900">账单明细</h2>
+          <div class="mb-3 flex items-center justify-between">
+            <h2 class="text-sm font-semibold tracking-tight text-slate-900">账单明细</h2>
+            <!-- 筛选后的计数提示，过滤时显示 -->
+            <span id="historyFilterCount" class="hidden text-xs text-slate-400"></span>
+          </div>
 
-          <!-- 空状态 -->
+          <!-- 搜索 + 分类筛选区 -->
+          <div class="mb-3 flex flex-col gap-2">
+            <!-- 搜索框 -->
+            <div class="relative">
+              <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+                   xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"
+                   stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"/><path stroke-linecap="round" d="m21 21-4.35-4.35"/>
+              </svg>
+              <input id="historySearchInput" type="search"
+                     class="history-search-input"
+                     placeholder="搜索名称或备注…"
+                     autocomplete="off" spellcheck="false">
+            </div>
+            <!-- 分类胶囊（由 JS 动态填充） -->
+            <div id="historyCatChips" class="cat-chips-row"></div>
+          </div>
+
+          <!-- 空状态：当月无数据 -->
           <div id="historyEmpty" class="hidden flex-col items-center justify-center rounded-3xl bg-white/75 py-16 text-center shadow-soft ring-1 ring-black/5">
             <svg class="mb-3 h-10 w-10 text-slate-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
@@ -991,6 +1118,19 @@
           </div>
 
           <div id="historyExpenseList" class="divide-y divide-white/80 overflow-hidden rounded-2xl bg-white/70 backdrop-blur-[12px] border border-white/60 shadow-glass"></div>
+
+          <!-- 搜索无结果（有数据但过滤后为空） -->
+          <div id="historySearchEmpty" class="hidden flex-col items-center justify-center rounded-2xl bg-white/70 backdrop-blur-[12px] border border-white/60 shadow-glass py-12 px-6 text-center">
+            <div class="empty-state-icon">
+              <svg class="h-7 w-7 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none"
+                   viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.6">
+                <circle cx="11" cy="11" r="8"/>
+                <path stroke-linecap="round" d="m21 21-4.35-4.35"/>
+              </svg>
+            </div>
+            <p class="text-sm font-semibold text-slate-600">没有找到匹配的账单</p>
+            <p class="mt-1.5 text-xs leading-relaxed text-slate-400">试试换个关键词，<br>或点击「全部」清除分类筛选。</p>
+          </div>
         </section>
       </section>
       <!-- ─────────────────────────────────────────────────────────── -->
@@ -2392,10 +2532,51 @@
           expenseList.querySelectorAll('article[data-dynamic="1"]').forEach((n) => n.remove());
         }
 
+        // ── 骨架屏：无缓存时占位 3 行，模拟真实列表结构 ──────────
+        function showExpensesSkeleton() {
+          // 清除已有内容，插入 3 条骨架行
+          expenseList.innerHTML = "";
+          const emptyEl = document.getElementById("expenseEmptyState");
+          if (emptyEl) emptyEl.classList.add("hidden");
+          for (let i = 0; i < 3; i++) {
+            const row = document.createElement("div");
+            row.dataset.skeleton = "1";
+            row.className = "flex items-center gap-3 px-4 py-3.5 border-b border-slate-100 last:border-0";
+            row.innerHTML = `
+              <div class="sk h-9 w-9 shrink-0 rounded-2xl"></div>
+              <div class="flex-1 min-w-0 space-y-2">
+                <div class="sk h-3.5 rounded" style="width:${55 + i * 13}%"></div>
+                <div class="sk h-3 rounded" style="width:${32 + i * 8}%"></div>
+              </div>
+              <div class="sk h-4 w-14 shrink-0 rounded"></div>
+            `;
+            expenseList.appendChild(row);
+          }
+        }
+
+        function hideExpensesSkeleton() {
+          expenseList.querySelectorAll("[data-skeleton]").forEach((n) => n.remove());
+        }
+
+        // ── 空状态切换：数据为空时展示精致提示 ──────────────────
+        const _emptyStateEl = document.getElementById("expenseEmptyState");
+        function syncExpenseEmptyState(count) {
+          if (!_emptyStateEl) return;
+          if (count === 0) {
+            _emptyStateEl.classList.remove("hidden");
+            _emptyStateEl.classList.add("flex");
+          } else {
+            _emptyStateEl.classList.add("hidden");
+            _emptyStateEl.classList.remove("flex");
+          }
+        }
+
         function renderExpenses() {
           clearDynamicRows();
+          hideExpensesSkeleton();
           const sorted = [...addedExpenses].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
           sorted.forEach((record) => expenseList.prepend(createExpenseRow(record)));
+          syncExpenseEmptyState(sorted.length);
         }
 
         function recalculateTotal() {
@@ -2527,6 +2708,9 @@
             addedExpenses = cached;
             renderExpenses();
             recalculateTotal();
+          } else {
+            // 无本地缓存时展示骨架屏，避免空白闪烁感
+            showExpensesSkeleton();
           }
 
           registerAllLocalFamilies(); // 非阻塞：把本地所有家庭/成员推送到云端 families 表
@@ -3071,6 +3255,102 @@
         const historyCategoryBars= document.getElementById("historyCategoryBars");
         const historyExpenseList = document.getElementById("historyExpenseList");
         const historyEmpty       = document.getElementById("historyEmpty");
+        const historySearchInput = document.getElementById("historySearchInput");
+        const historyCatChips    = document.getElementById("historyCatChips");
+        const historyFilterCount = document.getElementById("historyFilterCount");
+        const historySearchEmpty = document.getElementById("historySearchEmpty");
+
+        // ── 历史页搜索 / 筛选状态 ─────────────────────────────────
+        let _historyExpenses = [];          // 当月全量数据（不随过滤变化）
+        let _historyFilter = { keyword: "", category: "" };
+
+        // 过滤 + 重渲染列表（不影响汇总卡片）
+        function applyHistoryFilter() {
+          const kw  = _historyFilter.keyword.trim().toLowerCase();
+          const cat = _historyFilter.category;
+
+          const result = _historyExpenses.filter((e) => {
+            const matchCat = !cat || e.category === cat;
+            const matchKw  = !kw
+              || (e.name  || "").toLowerCase().includes(kw)
+              || (e.note  || "").toLowerCase().includes(kw)
+              || (e.member|| "").toLowerCase().includes(kw);
+            return matchCat && matchKw;
+          });
+
+          // 列表渲染
+          historyExpenseList.innerHTML = "";
+          const isFiltering = !!(kw || cat);
+
+          if (_historyExpenses.length === 0) {
+            // 当月本来就没有数据 → 已由原有 historyEmpty 处理，这里不管
+          } else if (result.length === 0) {
+            // 有数据但过滤后为空 → 搜索无结果状态
+            historyExpenseList.classList.add("hidden");
+            historySearchEmpty.classList.remove("hidden");
+            historySearchEmpty.classList.add("flex");
+          } else {
+            historyExpenseList.classList.remove("hidden");
+            historySearchEmpty.classList.add("hidden");
+            historySearchEmpty.classList.remove("flex");
+            result.forEach((record) =>
+              historyExpenseList.appendChild(createExpenseRow(record, { enableSwipeDelete: true }))
+            );
+          }
+
+          // 计数标签（仅在过滤时显示）
+          if (isFiltering && _historyExpenses.length > 0) {
+            historyFilterCount.textContent = `找到 ${result.length} / ${_historyExpenses.length} 笔`;
+            historyFilterCount.classList.remove("hidden");
+          } else {
+            historyFilterCount.classList.add("hidden");
+          }
+        }
+
+        // 构建分类 chips（"全部" + 当月实际出现的分类）
+        function buildCatChips(expenses) {
+          historyCatChips.innerHTML = "";
+          // 收集当月出现过的分类（按出现次数降序）
+          const catCount = {};
+          expenses.forEach((e) => { if (e.category) catCount[e.category] = (catCount[e.category] || 0) + 1; });
+          const cats = Object.keys(catCount).sort((a, b) => catCount[b] - catCount[a]);
+
+          const all = ["全部", ...cats];
+          all.forEach((cat) => {
+            const chip = document.createElement("button");
+            chip.type = "button";
+            chip.className = "cat-chip" + (cat === "全部" ? " active" : "");
+            if (cat !== "全部") {
+              const emoji = categoryConfig[cat]?.emoji ?? "";
+              chip.textContent = emoji ? `${emoji} ${cat}` : cat;
+            } else {
+              chip.textContent = "全部";
+            }
+            chip.addEventListener("click", () => {
+              _historyFilter.category = cat === "全部" ? "" : cat;
+              // 同步 active 样式
+              historyCatChips.querySelectorAll(".cat-chip").forEach((c) => c.classList.remove("active"));
+              chip.classList.add("active");
+              applyHistoryFilter();
+            });
+            historyCatChips.appendChild(chip);
+          });
+        }
+
+        // 搜索框 debounce（280ms）
+        let _searchDebounceTimer = null;
+        historySearchInput.addEventListener("input", () => {
+          clearTimeout(_searchDebounceTimer);
+          _searchDebounceTimer = setTimeout(() => {
+            _historyFilter.keyword = historySearchInput.value;
+            applyHistoryFilter();
+          }, 280);
+        });
+        // 点 × 清除时也立即触发
+        historySearchInput.addEventListener("search", () => {
+          _historyFilter.keyword = historySearchInput.value;
+          applyHistoryFilter();
+        });
 
         const _now = new Date();
         const NOW_YM = { year: _now.getFullYear(), month: _now.getMonth() + 1 };
@@ -3142,8 +3422,16 @@
             });
           });
 
-          // 账单列表
-          historyExpenseList.innerHTML = "";
+          // ── 账单列表 + 搜索筛选 ──
+          // 存全量数据，重置过滤器，生成分类 chips，然后渲染
+          _historyExpenses = expenses;
+          _historyFilter = { keyword: "", category: "" };
+          if (historySearchInput) historySearchInput.value = "";
+          buildCatChips(expenses);
+          historyFilterCount.classList.add("hidden");
+          historySearchEmpty.classList.add("hidden");
+          historySearchEmpty.classList.remove("flex");
+
           if (expenses.length === 0) {
             historyEmpty.classList.remove("hidden");
             historyEmpty.classList.add("flex");
@@ -3152,7 +3440,8 @@
             historyEmpty.classList.add("hidden");
             historyEmpty.classList.remove("flex");
             historyExpenseList.classList.remove("hidden");
-            expenses.forEach((record) => historyExpenseList.appendChild(createExpenseRow(record, { enableSwipeDelete: true })));
+            // 通过统一的 applyHistoryFilter 渲染，保证和过滤路径一致
+            applyHistoryFilter();
           }
         }
 
