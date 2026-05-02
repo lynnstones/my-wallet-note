@@ -350,12 +350,8 @@
         animation: btn-press 0.30s cubic-bezier(0.22, 1, 0.36, 1) both;
       }
 
-      /* ── 全局平滑过渡（颜色、背景、阴影切换无突跳） ── */
-      /* 刻意排除 transform，避免和 keyframe 动画冲突        */
-      /* cubic-bezier(0.22,1,0.36,1) = iOS 弹性 ease-out  */
-      .glass-card,
+      /* ── 全局平滑过渡（排除 transform，避免干扰 keyframe）── */
       .tab-btn,
-      .month-nav-btn,
       .cat-option,
       .delete-record-btn {
         transition:
@@ -364,17 +360,6 @@
           box-shadow       0.28s cubic-bezier(0.22, 1, 0.36, 1),
           opacity          0.22s cubic-bezier(0.22, 1, 0.36, 1),
           color            0.18s cubic-bezier(0.22, 1, 0.36, 1);
-      }
-
-      /* Tab 导航栏 ─────────────────────────────────────── */
-      /* ── 通用毛玻璃卡片 ──────────────────────────────────── */
-      .glass-card {
-        background: rgba(255,255,255,0.72);
-        backdrop-filter: blur(12px);
-        -webkit-backdrop-filter: blur(12px);
-        border: 1px solid rgba(255,255,255,0.60);
-        border-radius: 1.25rem;
-        box-shadow: 0 4px 24px rgba(99,102,241,0.07), 0 1.5px 6px rgba(0,0,0,0.04);
       }
 
       /* ── Tab 导航栏 ──────────────────────────────────────── */
@@ -509,7 +494,10 @@
         color: #334155;
         cursor: pointer;
         box-shadow: 0 2px 8px rgba(99,102,241,0.08);
-        transition: all 0.15s;
+        transition:
+          background-color 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+          opacity          0.15s cubic-bezier(0.22, 1, 0.36, 1),
+          transform        0.12s cubic-bezier(0.22, 1, 0.36, 1);
         flex-shrink: 0;
       }
       .month-nav-btn:hover  { background: #f8fafc; }
@@ -1354,20 +1342,29 @@
 
         const BUDGET_KEY = "wallet_budget_v1";
         let budget = (() => { const v = Number(localStorage.getItem(BUDGET_KEY)); return v > 0 ? v : 8000; })();
-        const baseTotal = 0;
         const storageKey = "wallet_added_expenses_v2";
 
         // ── 本地账单缓存 (多端快速首屏 + 离线支持) ─────────────────
-        const EXPENSE_CACHE_KEY  = "wallet_expense_cache_v1";
+        // v2: bumped to force-expire all v1 caches that had no month stamp
+        const EXPENSE_CACHE_KEY  = "wallet_expense_cache_v2";
         const HISTORY_CACHE_KEY  = "wallet_history_cache_v1";
         const HISTORY_CACHE_TTL  = 30 * 60 * 1000; // 历史月份缓存 30 分钟
+
+        // Returns "YYYY-MM" for the current calendar month
+        function currentYM() {
+          const n = new Date();
+          return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, "0")}`;
+        }
 
         function loadExpenseCache(familyCode) {
           try {
             const raw = localStorage.getItem(EXPENSE_CACHE_KEY);
             if (!raw) return [];
-            const all = JSON.parse(raw);
-            return (all[familyCode] || {}).expenses || [];
+            const all  = JSON.parse(raw);
+            const slot = all[familyCode] || {};
+            // Invalidate automatically when the calendar month changes
+            if (slot.ym !== currentYM()) return [];
+            return slot.expenses || [];
           } catch { return []; }
         }
 
@@ -1375,9 +1372,13 @@
           try {
             const raw = localStorage.getItem(EXPENSE_CACHE_KEY);
             const all = raw ? JSON.parse(raw) : {};
-            all[familyCode] = { expenses: expenses.slice(0, 1000), syncedAt: Date.now() };
+            all[familyCode] = {
+              expenses: expenses.slice(0, 1000),
+              syncedAt: Date.now(),
+              ym: currentYM(),         // stamp with current month so it auto-expires next month
+            };
             localStorage.setItem(EXPENSE_CACHE_KEY, JSON.stringify(all));
-          } catch (e) { console.warn("[expense-cache]", e?.message); }
+          } catch (_) {}
         }
 
         function loadHistoryCache(familyCode, year, month) {
@@ -1405,7 +1406,7 @@
             const keys = Object.keys(all[familyCode]).sort().reverse();
             if (keys.length > 6) keys.slice(6).forEach((k) => delete all[familyCode][k]);
             localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(all));
-          } catch (e) { console.warn("[history-cache]", e?.message); }
+          } catch (_) {}
         }
 
         function clearHistoryCache(familyCode) {
@@ -1416,7 +1417,7 @@
             if (!all[familyCode]) return;
             delete all[familyCode];
             localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(all));
-          } catch (e) { console.warn("[history-cache-clear]", e?.message); }
+          } catch (_) {}
         }
 
         // ── 离线待上传队列 ──────────────────────────────────────────
@@ -1433,7 +1434,7 @@
         function savePendingUploads(queue) {
           try {
             localStorage.setItem(PENDING_UPLOADS_KEY, JSON.stringify(queue));
-          } catch (e) { console.warn("[pending-queue]", e?.message); }
+          } catch (_) {}
         }
 
         // ── 轻量 Toast 通知 ─────────────────────────────────────────
@@ -1450,7 +1451,7 @@
           _toastTimer = setTimeout(() => _toastEl.classList.remove("show"), 2400);
         }
         let addedExpenses = [];
-        let totalSpent = baseTotal;
+        let totalSpent = 0;
 
         const categoryConfig = {
           "餐饮": { emoji: "🍔", color: "bg-orange-500", chartColor: "#ff9500" },
@@ -1468,7 +1469,12 @@
 
         function updateChart() {
           const totals = {};
-          addedExpenses.forEach((item) => {
+          // Filter to current month only, same logic as updateMonthlyRanking
+          const _cn = new Date();
+          const _cy = _cn.getFullYear(), _cm = _cn.getMonth();
+          addedExpenses
+            .filter((e) => { const d = new Date(e.timestamp); return d.getFullYear() === _cy && d.getMonth() === _cm; })
+            .forEach((item) => {
             const cat = item.category || "其他";
             totals[cat] = (totals[cat] || 0) + Number(item.amount);
           });
@@ -1988,7 +1994,7 @@
               { family_code: session.familyCode, monthly_budget: value, updated_at: new Date().toISOString() },
               { onConflict: "family_code" }
             );
-          } catch (e) { console.warn("[budget-cloud]", e?.message); }
+          } catch (_) {}
         }
 
         // ── 上月总支出（用于同环比） ──────────────────────────────
@@ -2170,7 +2176,6 @@
           const queue = loadPendingUploads();
           if (queue.length === 0) return;
 
-          console.log(`[pending] 检测到 ${queue.length} 条未同步账单，开始补传…`);
           const failed = [];
           for (const record of queue) {
             const { error } = await sb.from("expenses").insert({
@@ -2190,25 +2195,25 @@
           }
           savePendingUploads(failed);
           const uploaded = queue.length - failed.length;
-          if (uploaded > 0) {
-            console.log(`[pending] 补传成功 ${uploaded} 条`);
-            showToast(`已补传 ${uploaded} 条离线账单 ✓`);
-          }
-          if (failed.length > 0) {
-            console.warn(`[pending] 仍有 ${failed.length} 条补传失败，下次重试`);
-          }
+          if (uploaded > 0) showToast(`已补传 ${uploaded} 条离线账单 ✓`);
         }
 
         async function fetchFamilyExpenses() {
+          // Only fetch the current calendar month — this is the core home-page data scope.
+          const _n   = new Date();
+          const start = new Date(_n.getFullYear(), _n.getMonth(), 1).toISOString();
+          const end   = new Date(_n.getFullYear(), _n.getMonth() + 1, 1).toISOString();
+
           const { data, error } = await sb
             .from("expenses")
             .select("*")
             .eq("family_code", session.familyCode)
+            .gte("created_at", start)
+            .lt("created_at", end)
             .order("created_at", { ascending: false });
           if (error) {
             console.error("[fetch] Supabase 读取失败:", error.code, error.message);
             showToast("⚠️ 云端读取失败，显示本地缓存");
-            // 返回本地缓存兜底，不让界面空白
             return loadExpenseCache(session.familyCode);
           }
           return (data || []).map((row) => ({
@@ -2256,6 +2261,12 @@
               (payload) => {
                 const row = payload.new;
                 if (addedExpenses.some((e) => e.id === row.id)) return;
+
+                // Only apply realtime inserts that belong to the current calendar month.
+                // Back-dated entries (补账 for a past month) go to history, not the home list.
+                const _rn = new Date();
+                const _rd = new Date(row.created_at);
+                if (_rd.getFullYear() !== _rn.getFullYear() || _rd.getMonth() !== _rn.getMonth()) return;
 
                 const record = {
                   id: row.id,
@@ -2580,7 +2591,13 @@
         }
 
         function recalculateTotal() {
-          totalSpent = addedExpenses.reduce((sum, item) => sum + Number(item.amount), 0);
+          // Defensive month filter: even if stale data somehow slips into addedExpenses,
+          // only count expenses that belong to the current calendar month.
+          const _n = new Date();
+          const _y = _n.getFullYear(), _m = _n.getMonth();
+          totalSpent = addedExpenses
+            .filter((e) => { const d = new Date(e.timestamp); return d.getFullYear() === _y && d.getMonth() === _m; })
+            .reduce((sum, item) => sum + Number(item.amount), 0);
           updateSummary();
           updateChart();
           updateMonthlyRanking();
@@ -2608,7 +2625,6 @@
             return;
           }
 
-          console.log(`[迁移] 发现 ${toUpload.length} 条旧数据，正在上传…`);
           await Promise.all(
             toUpload.map((r) =>
               sb.from("expenses").upsert({
@@ -2624,7 +2640,6 @@
             )
           );
           localStorage.removeItem(storageKey);
-          console.log("[迁移] 完成，旧缓存已清除");
         }
 
         // ── 将本地所有家庭/成员批量注册到 Supabase families 表 ────
@@ -2648,10 +2663,8 @@
             const { error } = await sb
               .from("families")
               .upsert(rows, { onConflict: "family_code,member" });
-            if (error) console.warn("[registerAllLocal]", error.message);
-            else console.log(`[sync] 已注册 ${rows.length} 条本地家庭/成员到云端 families 表`);
+            // silent: background registration, errors are non-critical
           } catch (e) {
-            console.warn("[registerAllLocal]", e?.message || e);
           }
         }
 
@@ -2692,14 +2705,14 @@
             fam.lastMember = session.member;
             local.lastFamily = session.familyCode;
             saveFamiliesData(local);
-            console.log(`[sync] 同步了 ${allMembers.length} 位家庭成员到本地缓存`);
           } catch (e) {
-            console.warn("[syncFamilyMembers]", e?.message || e);
           }
         }
 
         async function initApp() {
           applySession();
+          // Proactively remove the old v1 cache key so it never leaks through
+          try { localStorage.removeItem("wallet_expense_cache_v1"); } catch (_) {}
           await migrateOldData();
 
           // ① 立即渲染本地缓存，加速首屏（离线也能看到数据）
@@ -2747,6 +2760,36 @@
           }
 
           subscribeRealtime();
+
+          // ── 跨月自动重置：当页面从后台恢复时检查月份 ──────────────
+          // 场景：用户昨晚（4月）开着 App，今天（5月）回来，不重新加载
+          // 也处理用户当天不关 App 跨过零点的情况
+          let _lastKnownYM = currentYM();
+          document.addEventListener("visibilitychange", async () => {
+            if (document.visibilityState !== "visible") return;
+            const nowYM = currentYM();
+            if (nowYM === _lastKnownYM) return;
+            // Month has changed — re-fetch and reset everything
+            _lastKnownYM = nowYM;
+            addedExpenses = [];
+            renderExpenses();          // show empty / skeleton
+            recalculateTotal();
+            showToast(`已切换到 ${nowYM.replace("-", "月").replace(/^\d{4}/, "")}月账单`);
+            const [cloudBudget, lastMonthTotal, fresh] = await Promise.all([
+              fetchFamilyBudget(),
+              fetchLastMonthTotal(),
+              fetchFamilyExpenses(),
+            ]);
+            if (cloudBudget && cloudBudget !== budget) {
+              budget = cloudBudget;
+              localStorage.setItem(BUDGET_KEY, String(budget));
+            }
+            addedExpenses = fresh;
+            saveExpenseCache(session.familyCode, fresh);
+            renderExpenses();
+            recalculateTotal();
+            updateMoMBadge(totalSpent, lastMonthTotal);
+          });
         }
 
         // ── 预算弹窗逻辑 ──────────────────────────────────────
@@ -2776,11 +2819,14 @@
         saveBudgetBtn.addEventListener("click", () => {
           const v = Number(budgetInput.value);
           if (!v || v <= 0) { budgetInput.focus(); return; }
+          // Prevent double-tap: disable for 600 ms to absorb rapid presses
+          if (saveBudgetBtn.disabled) return;
+          saveBudgetBtn.disabled = true;
+          setTimeout(() => { saveBudgetBtn.disabled = false; }, 600);
           budget = v;
           localStorage.setItem(BUDGET_KEY, String(v));
           updateSummary();
           closeBudgetModal();
-          // 同步到云端（非阻塞），让所有设备用同一个预算
           saveFamilyBudgetToCloud(v);
         });
         budgetInput.addEventListener("keydown", (e) => {
@@ -3055,7 +3101,6 @@
               }
               setMemberHint("found", `✓ 找到 ${cloudMembers.length} 位成员`);
             } catch (err) {
-              console.warn("[家庭查询]", err?.message || err);
               setMemberHint("notfound", "查询失败，请检查网络");
             }
           }, 600);
@@ -3128,7 +3173,6 @@
               renderFamilyDropdown();
             }
           } catch (e) {
-            console.warn("[syncAllFamilies]", e?.message || e);
             setHint("notfound", "连接失败，请检查网络");
           }
         }
@@ -3186,8 +3230,7 @@
             .upsert(
               { family_code: familyName, member: memberName, updated_at: new Date().toISOString() },
               { onConflict: "family_code,member" }
-            )
-            .then(({ error }) => { if (error) console.warn("[families register]", error.message); });
+            );
 
           session = { familyCode: familyName, member: memberName };
           saveSession(session);
@@ -3229,10 +3272,25 @@
             timestamp: buildTimestampFromDateInput(selectedDate),
           };
 
-          expenseList.prepend(createExpenseRow(record));
-          addedExpenses.unshift(record);
-          saveExpenseCache(session.familyCode, addedExpenses);
-          recalculateTotal();
+          // Only add to the home-page list if the record is for the current month.
+          // Back-dated entries (补账 to a previous month) are saved to cloud and
+          // will appear in the history page, but must not pollute the current-month view.
+          const _rDate = new Date(record.timestamp);
+          const _now2  = new Date();
+          const isCurrentMonth =
+            _rDate.getFullYear() === _now2.getFullYear() &&
+            _rDate.getMonth()    === _now2.getMonth();
+
+          if (isCurrentMonth) {
+            expenseList.prepend(createExpenseRow(record));
+            addedExpenses.unshift(record);
+            saveExpenseCache(session.familyCode, addedExpenses);
+            recalculateTotal();
+          } else {
+            // Past-month entry: clear history cache for that month so it refreshes on next visit
+            clearHistoryCache(session.familyCode);
+            showToast(`补账成功，已记录到 ${_rDate.getMonth() + 1}月${_rDate.getDate()}日 ✓`);
+          }
           closeModal();
 
           await saveExpenseToCloud(record);
@@ -3445,21 +3503,35 @@
           }
         }
 
+        // In-flight guard: stores the "year-month" key of the request currently in progress.
+        // Rapid prev/next clicks abort stale requests so only the latest renders.
+        let _historyInflight = null;
+
         async function loadHistoryMonth(year, month) {
-          // 优先走本地缓存（当月除外，因为随时可能有新账单）
+          const key = `${year}-${month}`;
+
+          // Cache hit — no network needed, render immediately
           const hit = loadHistoryCache(session.familyCode, year, month);
           if (hit) {
+            _historyInflight = null;
             renderHistoryMonth(year, month, hit);
             return;
           }
+
+          // Mark this request as the active one; a newer call will overwrite the key
+          _historyInflight = key;
 
           historyLoading.classList.remove("hidden");
           historyLoading.classList.add("flex");
           historySummaryCard.style.opacity = "0.45";
 
           const expenses = await fetchMonthExpenses(year, month);
-          saveHistoryCache(session.familyCode, year, month, expenses);
 
+          // If a newer request started while we were awaiting, discard this result
+          if (_historyInflight !== key) return;
+          _historyInflight = null;
+
+          saveHistoryCache(session.familyCode, year, month, expenses);
           historyLoading.classList.add("hidden");
           historyLoading.classList.remove("flex");
           historySummaryCard.style.opacity = "";
@@ -3708,8 +3780,6 @@
             navigator.serviceWorker
               .register("./sw.js")
               .then(() => {
-                console.log("Manifest 路径已重置");
-                console.log("PWA 配置已重新加载");
               })
               .catch(() => {});
           });
