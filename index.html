@@ -2091,7 +2091,8 @@
 
         // ── Helpers ───────────────────────────────────────────────
         function formatMoney(value) {
-          return "¥ " + value.toLocaleString("zh-CN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+          // Always 2 decimal places so ¥2,717.00 vs ¥27.17 is immediately visible
+          return "¥ " + value.toLocaleString("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         function updateSummary() {
@@ -3261,6 +3262,15 @@
           const selectedDate = dateInput?.value || "";
 
           if (!name || !Number.isFinite(amount) || amount <= 0) return;
+
+          // Large-amount guard: prompt for confirmation when the entered value
+          // exceeds ¥999, catching accidental integer entries like "2717" → "27.17"
+          if (amount > 999) {
+            const ok = window.confirm(
+              `⚠️ 金额较大：¥${amount.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}\n\n确认金额无误吗？\n（如有误，请关闭后修改）`
+            );
+            if (!ok) return;
+          }
 
           const record = {
             id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
