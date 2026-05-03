@@ -1142,6 +1142,15 @@
                 </button>
               </div>
             </div>
+            <div
+              id="recentFilteredTotalStrip"
+              class="recent-filter-total-strip mb-2 flex flex-col gap-1 rounded-xl border border-white/70 bg-white/60 px-3.5 py-2.5 shadow-sm backdrop-blur-[10px] sm:flex-row sm:items-baseline sm:justify-between sm:gap-3"
+              role="status"
+              aria-live="polite"
+            >
+              <span id="recentFilteredTotalCaption" class="text-xs font-medium leading-snug text-slate-600">列表内本月合计 · 全部成员</span>
+              <span id="recentFilteredTotalAmount" class="text-lg font-semibold tabular-nums tracking-tight text-slate-900">¥ 0.00</span>
+            </div>
             <div id="expenseList" class="divide-y divide-white/80 overflow-hidden rounded-2xl bg-white/70 backdrop-blur-[12px] border border-white/60 shadow-glass"></div>
 
           <!-- 空状态：当月无消费时展示 -->
@@ -2868,6 +2877,7 @@
             `;
             expenseList.appendChild(row);
           }
+          updateRecentFilteredTotalStrip();
         }
 
         function hideExpensesSkeleton() {
@@ -2943,6 +2953,23 @@
             heading.textContent = `${recentExpenseFilterMember}的消费`;
         }
 
+        /** 当前筛选条件下，本月账单在下列表中的合计（与上方卡片「本月已支出」无关） */
+        function updateRecentFilteredTotalStrip() {
+          const capEl = document.getElementById("recentFilteredTotalCaption");
+          const amtEl = document.getElementById("recentFilteredTotalAmount");
+          if (!amtEl || !capEl) return;
+          let total = 0;
+          for (let i = 0; i < addedExpenses.length; i++) {
+            const e = addedExpenses[i];
+            if (!recordMatchesRecentFilter(e)) continue;
+            total += Number(e.amount) || 0;
+          }
+          amtEl.textContent = formatMoney(total);
+          capEl.textContent = recentExpenseFilterMember
+            ? `${recentExpenseFilterMember} · 下列账单本月合计`
+            : "下列账单本月合计 · 全部成员";
+        }
+
         function refreshRecentMemberFilterUI() {
           const sel = document.getElementById("recentMemberFilter");
           if (!sel || !session) return;
@@ -2971,6 +2998,7 @@
             sel.value = recentExpenseFilterMember ? recentExpenseFilterMember : "__all__";
           }
           updateRecentConsumeHeading();
+          updateRecentFilteredTotalStrip();
         }
 
         function renderExpenses() {
@@ -2981,8 +3009,8 @@
             .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
           sorted.forEach((record) => expenseList.prepend(createExpenseRow(record)));
           syncExpenseEmptyState(sorted.length);
+          updateRecentFilteredTotalStrip();
         }
-
 
         function recalculateTotal() {
           // Defensive month filter: even if stale data somehow slips into addedExpenses,
@@ -2997,6 +3025,7 @@
           updateMonthlyRanking();
           updateWeeklyChart();
           updateMoMBadge(totalSpent, lastMonthTotalCached);
+          updateRecentFilteredTotalStrip();
         }
 
         // ── 登录逻辑 ──────────────────────────────────────────────
