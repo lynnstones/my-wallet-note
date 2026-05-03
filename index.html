@@ -233,16 +233,19 @@
           right: max(2rem, calc(50% - 20rem));
         }
       }
-      /* 新增消费 Modal：底部内边距 + 安全区 + 可选键盘占位（JS 写入 --keyboard-overlap） */
+      /* 新增消费 Modal：必须用 :not(.hidden)，否则 ID 选择器下的 display:flex 会压过 Tailwind .hidden，
+         造成「未点开也挡住主界面」，且 closeModal 误判仍为关闭态而无法收起、无法 reset。 */
       #addExpenseModal.add-expense-modal-sheet {
-        display: flex;
-        flex-direction: column;
         max-height: 92dvh;
         max-height: min(92svh, 92dvh);
         overscroll-behavior: contain;
         padding-bottom: calc(
           max(1.25rem, calc(1.25rem + env(safe-area-inset-bottom, 0px))) + var(--keyboard-overlap, 0px)
         );
+      }
+      #addExpenseModal.add-expense-modal-sheet:not(.hidden) {
+        display: flex;
+        flex-direction: column;
       }
       #addExpenseModal.add-expense-modal-sheet .expense-modal-form {
         flex: 1 1 auto;
