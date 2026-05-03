@@ -655,7 +655,9 @@
         color: #334155;
         line-height: 1.35;
         max-width: min(13rem, 100%);
-        min-width: 7.75rem;
+        width: 100%;
+        min-width: 0;
+        flex: 1 1 5.5rem;
         box-shadow:
           0 2px 12px rgba(99, 102, 241, 0.08),
           inset 0 1px 0 rgba(255, 255, 255, 0.65);
@@ -671,6 +673,14 @@
           0 0 0 3px rgba(99, 102, 241, 0.15),
           0 4px 16px rgba(99, 102, 241, 0.1);
       }
+      @media (min-width: 640px) {
+        .recent-member-filter-select {
+          width: auto;
+          flex: 0 1 auto;
+          min-width: 7.75rem;
+        }
+      }
+
       /* 胶囊列横向滚动，隐藏滚动条 */
       .cat-chips-row {
         display: flex;
@@ -1118,11 +1128,11 @@
               <p class="text-xs text-slate-500">以下为列表筛选结果，可与上方「本月已支出」（全家总计）对照查看</p>
             </div>
             <div class="mb-3 flex flex-col gap-3 border-t border-white/60 pt-3 sm:flex-row sm:items-center sm:justify-between">
-              <div class="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <div class="flex min-w-0 flex-row flex-nowrap items-center gap-2 sm:gap-3">
                 <h2 class="shrink-0 text-sm font-semibold tracking-tight text-slate-900">最近消费</h2>
-                <div class="flex min-w-0 items-center gap-2">
+                <div class="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-initial sm:max-w-none">
                   <label for="recentMemberFilter" class="shrink-0 text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">账户</label>
-                  <select id="recentMemberFilter" class="recent-member-filter-select" autocomplete="off" aria-describedby="recentConsumeHeading"></select>
+                  <select id="recentMemberFilter" class="recent-member-filter-select min-w-0 flex-1 sm:flex-initial" autocomplete="off" aria-describedby="recentConsumeHeading"></select>
                 </div>
               </div>
               <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
