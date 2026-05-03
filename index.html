@@ -36,27 +36,46 @@
       *, *::before, *::after { box-sizing: border-box; }
 
       html {
+        width: 100%;
+        max-width: 100%;
         overflow-x: hidden;
+        overscroll-behavior-x: none;
         -webkit-text-size-adjust: 100%;
-        /* 全局渐变背景：淡紫→浅蓝灰，衬托毛玻璃白卡片 */
         background: linear-gradient(150deg, #eef0fa 0%, #e8edf8 40%, #dde9f5 100%);
-        background-attachment: fixed;
+        background-attachment: scroll;
         min-height: 100%;
+      }
+      @supports (overflow: clip) {
+        html { overflow-x: clip; }
       }
 
       body {
-        overflow-x: hidden;
+        width: 100%;
         max-width: 100%;
+        overflow-x: hidden;
+        position: relative;
         overscroll-behavior-x: none;
+        overscroll-behavior-y: auto;
+        /* iOS standalone：减少双击缩放延时；overscroll-x 再配合 overflow-x 抑制横向拖拽感 */
+        touch-action: manipulation;
         -webkit-overflow-scrolling: touch;
         font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC",
           "Helvetica Neue", Helvetica, Arial, sans-serif;
         -webkit-font-smoothing: antialiased;
         text-rendering: optimizeLegibility;
-        /* body 继承渐变，确保 iOS Safari 弹性滚动不露白 */
+        /* body 继承渐变；勿在触屏 WKWebView 上用 fixed ——易引发横向视口漂移 */
         background: linear-gradient(150deg, #eef0fa 0%, #e8edf8 40%, #dde9f5 100%);
-        background-attachment: fixed;
+        background-attachment: scroll;
         min-height: 100vh;
+        min-height: 100dvh;
+        min-height: -webkit-fill-available;
+      }
+
+      /* 大屏指针设备：仍可保留轻度视差渐变 */
+      @media (hover: hover) and (pointer: fine) {
+        html, body {
+          background-attachment: fixed;
+        }
       }
 
       /* flex 子项默认可收缩，防止内容撑破父容器 */
@@ -199,6 +218,9 @@
       .page-wrapper {
         padding-top: max(2.5rem, calc(0.5rem + env(safe-area-inset-top, 0px)));
         padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+        /* 拦住子节点（图表 / 手势）意外的横向溢出，避免 PWA 整页漂移 */
+        max-width: 100%;
+        overflow-x: hidden;
       }
       /* FAB 按钮：紧贴安全区上方 */
       .fab-safe {
@@ -595,6 +617,8 @@
         overflow-x: auto;
         padding-bottom: 2px; /* 防止 box-shadow 被裁切 */
         scrollbar-width: none;
+        touch-action: pan-x pinch-zoom;
+        -webkit-overflow-scrolling: touch;
       }
       .cat-chips-row::-webkit-scrollbar { display: none; }
 
@@ -778,11 +802,19 @@
       /* ── 本周折线图容器 ──────────────────────────────────── */
       .weekly-chart-wrap {
         position: relative;
+        overflow: hidden;
+        max-width: 100%;
         /* 多出高度留给顶部金额标注 + 底部双行 X 轴 */
         height: 148px;
       }
       @media (min-width: 640px) {
         .weekly-chart-wrap { height: 168px; }
+      }
+
+      /* Chart.js canvas 偶有测量宽度溢出，卡住横向不回弹 */
+      #chartWrap {
+        max-width: 100%;
+        overflow-x: hidden;
       }
 
       /* ── 登录屏家庭列表同步状态 ─────────────────────────── */
