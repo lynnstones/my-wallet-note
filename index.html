@@ -75,16 +75,11 @@
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
-        transition:
-          opacity 0.52s cubic-bezier(0.22, 1, 0.36, 1),
-          visibility 0s linear;
       }
-      #splash-screen.splash-screen--hide {
+      /* Supabase 首屏就绪后由 JS 添加：0.8s 淡出再从 DOM 摘除 */
+      #splash-screen.fade-out {
         opacity: 0;
-        visibility: hidden;
-        transition:
-          opacity 0.52s cubic-bezier(0.22, 1, 0.36, 1),
-          visibility 0s linear 0.52s;
+        transition: all 0.8s ease;
         pointer-events: none;
       }
       #splash-screen .splash-screen__veil {
@@ -2868,19 +2863,12 @@
           el.dataset.done = "1";
           const wait = Math.max(0, SPLASH_MIN_MS - (performance.now() - _splashShownAt));
           setTimeout(() => {
-            el.classList.add("splash-screen--hide");
-            const finalize = () => el.remove();
-            const tid = setTimeout(finalize, 650);
-            el.addEventListener(
-              "transitionend",
-              (e) => {
-                if (e.target === el && e.propertyName === "opacity") {
-                  clearTimeout(tid);
-                  finalize();
-                }
-              },
-              { once: true },
-            );
+            el.classList.add("fade-out");
+            // 与 #splash-screen.fade-out 中 transition 0.8s 对齐；动画后再从文档剔除
+            setTimeout(() => {
+              el.style.display = "none";
+              el.remove();
+            }, 800);
           }, wait);
         }
 
