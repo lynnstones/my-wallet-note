@@ -236,9 +236,15 @@
       /* 新增消费 Modal：必须用 :not(.hidden)，否则 ID 选择器下的 display:flex 会压过 Tailwind .hidden，
          造成「未点开也挡住主界面」，且 closeModal 误判仍为关闭态而无法收起、无法 reset。 */
       #addExpenseModal.add-expense-modal-sheet {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
         max-height: 92dvh;
         max-height: min(92svh, 92dvh);
         overscroll-behavior: contain;
+        padding-left: max(1.25rem, calc(1.25rem + env(safe-area-inset-left, 0px)));
+        padding-right: max(1.25rem, calc(1.25rem + env(safe-area-inset-right, 0px)));
         padding-bottom: calc(
           max(1.25rem, calc(1.25rem + env(safe-area-inset-bottom, 0px))) + var(--keyboard-overlap, 0px)
         );
@@ -250,11 +256,33 @@
       #addExpenseModal.add-expense-modal-sheet .expense-modal-form {
         flex: 1 1 auto;
         min-height: 0;
+        min-width: 0;
         overflow-x: hidden;
         overflow-y: auto;
         overscroll-behavior-y: contain;
         overscroll-behavior-x: none;
         -webkit-overflow-scrolling: touch;
+      }
+      /* 选中态改用内阴影，避免外扩 box-shadow + focus ring 把可滚动宽度撑出视口 */
+      #addExpenseModal .peer:checked ~ .cat-option.cat-expense,
+      #addExpenseModal .peer:checked ~ .peer-checked\:cat-checked {
+        box-shadow: inset 0 0 0 2px rgba(239, 68, 68, 0.18);
+      }
+      #addExpenseModal .expense-modal-cat-grid .cat-option {
+        min-width: 0;
+        overflow: hidden;
+      }
+      #addExpenseModal .expense-modal-cat-grid .cat-text {
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #addExpenseModal .expense-modal-form input[type="text"],
+      #addExpenseModal .expense-modal-form input[type="number"],
+      #addExpenseModal .expense-modal-form input[type="date"] {
+        box-sizing: border-box;
+        max-width: 100%;
       }
 
       body.modal-sheet-open {
@@ -1412,23 +1440,23 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="modalTitle"
-      class="add-expense-modal-sheet fixed inset-x-0 bottom-0 z-50 hidden rounded-t-2xl bg-white/85 px-5 pt-5 backdrop-blur-[16px] border border-white/70 shadow-glass sm:mx-auto sm:bottom-8 sm:max-w-md sm:rounded-2xl"
+      class="add-expense-modal-sheet fixed inset-x-0 bottom-0 z-50 hidden rounded-t-2xl bg-white/85 pt-5 backdrop-blur-[16px] border border-white/70 shadow-glass sm:mx-auto sm:bottom-8 sm:max-w-md sm:rounded-2xl"
     >
-      <div class="mb-4 flex shrink-0 items-center justify-between">
+      <div class="mb-4 flex shrink-0 min-w-0 items-center justify-between gap-3">
         <h3 id="modalTitle" class="text-base font-semibold tracking-tight text-slate-900">新增消费</h3>
-        <button id="closeModal" type="button" class="rounded-full px-2 py-1 text-sm text-slate-500 hover:bg-slate-100">关闭</button>
+        <button id="closeModal" type="button" class="shrink-0 rounded-full px-2 py-1 text-sm text-slate-500 hover:bg-slate-100">关闭</button>
       </div>
       <form id="expenseForm" class="expense-modal-form space-y-4">
-        <div>
+        <div class="min-w-0">
           <div class="mb-2 flex items-center justify-between">
             <label class="text-xs font-medium text-slate-500">分类</label>
           </div>
-          <div class="grid grid-cols-4 gap-2">
+          <div class="expense-modal-cat-grid grid min-w-0 w-full grid-cols-4 gap-1.5 sm:gap-2">
 
             <!-- 支出类：浅红底 -->
-            <label class="cat-label cursor-pointer">
+            <label class="cat-label min-w-0 cursor-pointer">
               <input type="radio" name="category" value="餐饮" class="peer sr-only" checked>
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex min-w-0 w-full flex-col items-center gap-0.5 rounded-xl p-1.5 sm:gap-1 sm:rounded-2xl sm:p-2.5">
                 <span class="text-xl leading-none">🍔</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">餐饮</span>
               </div>
@@ -1436,7 +1464,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="交通" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex min-w-0 w-full flex-col items-center gap-0.5 rounded-xl p-1.5 sm:gap-1 sm:rounded-2xl sm:p-2.5">
                 <span class="text-xl leading-none">🚗</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">交通</span>
               </div>
@@ -1444,7 +1472,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="购物" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex min-w-0 w-full flex-col items-center gap-0.5 rounded-xl p-1.5 sm:gap-1 sm:rounded-2xl sm:p-2.5">
                 <span class="text-xl leading-none">🛍️</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">购物</span>
               </div>
@@ -1452,7 +1480,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="娱乐" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex min-w-0 w-full flex-col items-center gap-0.5 rounded-xl p-1.5 sm:gap-1 sm:rounded-2xl sm:p-2.5">
                 <span class="text-xl leading-none">🎮</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">娱乐</span>
               </div>
@@ -1460,7 +1488,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="医疗" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex min-w-0 w-full flex-col items-center gap-0.5 rounded-xl p-1.5 sm:gap-1 sm:rounded-2xl sm:p-2.5">
                 <span class="text-xl leading-none">💊</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">医疗</span>
               </div>
@@ -1468,7 +1496,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="居家" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex min-w-0 w-full flex-col items-center gap-0.5 rounded-xl p-1.5 sm:gap-1 sm:rounded-2xl sm:p-2.5">
                 <span class="text-xl leading-none">🏠</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">居家</span>
               </div>
@@ -1476,7 +1504,7 @@
 
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="其他" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex min-w-0 w-full flex-col items-center gap-0.5 rounded-xl p-1.5 sm:gap-1 sm:rounded-2xl sm:p-2.5">
                 <span class="text-xl leading-none">📦</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">其他</span>
               </div>
@@ -1485,7 +1513,7 @@
             <!-- 支出类 -->
             <label class="cat-label cursor-pointer">
               <input type="radio" name="category" value="通讯" class="peer sr-only">
-              <div class="cat-option cat-expense peer-checked:cat-checked flex flex-col items-center gap-1 rounded-2xl p-2.5">
+              <div class="cat-option cat-expense peer-checked:cat-checked flex min-w-0 w-full flex-col items-center gap-0.5 rounded-xl p-1.5 sm:gap-1 sm:rounded-2xl sm:p-2.5">
                 <span class="text-xl leading-none">📱</span>
                 <span class="cat-text text-[11px] font-medium text-slate-500">通讯</span>
               </div>
@@ -1493,7 +1521,7 @@
 
           </div>
         </div>
-        <div>
+        <div class="min-w-0">
           <label for="expenseName" class="mb-1 block text-xs font-medium text-slate-500">消费名称 (必填)</label>
           <input
             id="expenseName"
@@ -1501,10 +1529,10 @@
             type="text"
             required
             placeholder="例如：电影票"
-            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none ring-accent/30 transition placeholder:text-slate-400 focus:border-accent focus:ring-2"
+            class="w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent/35"
           />
         </div>
-        <div>
+        <div class="min-w-0">
           <label for="expenseAmount" class="mb-1 block text-xs font-medium text-slate-500">金额 (必填)</label>
           <input
             id="expenseAmount"
@@ -1514,26 +1542,26 @@
             step="0.01"
             required
             placeholder="例如：58"
-            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none ring-accent/30 transition placeholder:text-slate-400 focus:border-accent focus:ring-2"
+            class="w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent/35"
           />
         </div>
-        <div>
+        <div class="min-w-0">
           <label for="expenseNote" class="mb-1 block text-xs font-medium text-slate-500">备注 (选填)</label>
           <input
             id="expenseNote"
             name="expenseNote"
             type="text"
             placeholder="添加详细说明..."
-            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none ring-accent/30 transition placeholder:text-slate-400 focus:border-accent focus:ring-2"
+            class="w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-accent focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent/35"
           />
         </div>
-        <div>
+        <div class="min-w-0">
           <label for="expenseDate" class="mb-1 block text-xs font-medium text-slate-500">日期 (默认今天，可补账)</label>
           <input
             id="expenseDate"
             name="expenseDate"
             type="date"
-            class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none ring-accent/30 transition focus:border-accent focus:ring-2"
+            class="w-full min-w-0 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-accent focus:outline-none focus:ring-2 focus:ring-inset focus:ring-accent/35"
           />
         </div>
         <button
