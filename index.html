@@ -234,11 +234,11 @@
         }
       }
       /* 新增消费 Modal：必须用 :not(.hidden)，否则 ID 选择器下的 display:flex 会压过 Tailwind .hidden，
-         造成「未点开也挡住主界面」，且 closeModal 误判仍为关闭态而无法收起、无法 reset。 */
+         造成「未点开也挡住主界面」，且 closeModal 误判仍为关闭态而无法收起、无法 reset。
+         iOS：聚焦 <16px 输入会整页缩放；键盘弹出时 layout viewport 与 visual viewport 宽度不一致，
+         窄屏下用 JS 写入 --vv-left / --vv-width 将 sheet 锚到可见视口，避免左右裁切。 */
       #addExpenseModal.add-expense-modal-sheet {
         box-sizing: border-box;
-        width: 100%;
-        max-width: 100%;
         overflow-x: hidden;
         max-height: 92dvh;
         max-height: min(92svh, 92dvh);
@@ -248,6 +248,24 @@
         padding-bottom: calc(
           max(1.25rem, calc(1.25rem + env(safe-area-inset-bottom, 0px))) + var(--keyboard-overlap, 0px)
         );
+      }
+      @media (max-width: 639px) {
+        #addExpenseModal.add-expense-modal-sheet {
+          left: var(--vv-left, 0px);
+          right: auto;
+          width: var(--vv-width, 100%);
+          max-width: var(--vv-width, 100%);
+          margin-left: 0;
+          margin-right: 0;
+        }
+      }
+      @media (max-width: 639px) {
+        #addExpenseModal .expense-modal-form input[type="text"],
+        #addExpenseModal .expense-modal-form input[type="number"],
+        #addExpenseModal .expense-modal-form input[type="date"] {
+          font-size: 1rem;
+          line-height: 1.5;
+        }
       }
       #addExpenseModal.add-expense-modal-sheet:not(.hidden) {
         display: flex;
@@ -285,13 +303,22 @@
         max-width: 100%;
       }
 
+      html.modal-sheet-open {
+        overflow: hidden;
+        height: 100%;
+      }
+      html.modal-sheet-open,
+      body.modal-sheet-open {
+        overflow-x: hidden;
+        overscroll-behavior-x: none;
+      }
       body.modal-sheet-open {
         overflow: hidden;
         position: fixed;
         left: 0;
         right: 0;
         width: 100%;
-        overscroll-behavior-x: none;
+        max-width: 100%;
       }
 
 
@@ -1440,7 +1467,7 @@
       role="dialog"
       aria-modal="true"
       aria-labelledby="modalTitle"
-      class="add-expense-modal-sheet fixed inset-x-0 bottom-0 z-50 hidden rounded-t-2xl bg-white/85 pt-5 backdrop-blur-[16px] border border-white/70 shadow-glass sm:mx-auto sm:bottom-8 sm:max-w-md sm:rounded-2xl"
+      class="add-expense-modal-sheet fixed bottom-0 z-50 hidden rounded-t-2xl bg-white/85 pt-5 backdrop-blur-[16px] border border-white/70 shadow-glass sm:inset-x-0 sm:mx-auto sm:bottom-8 sm:max-w-md sm:rounded-2xl sm:w-full"
     >
       <div class="mb-4 flex shrink-0 min-w-0 items-center justify-between gap-3">
         <h3 id="modalTitle" class="text-base font-semibold tracking-tight text-slate-900">新增消费</h3>
@@ -2625,27 +2652,42 @@
         let _modalSavedScrollY = 0;
         let _visualViewportCleanup = null;
 
-        function syncExpenseModalKeyboardInset() {
+        function syncExpenseModalViewport() {
           const vv = window.visualViewport;
-          if (!vv) return;
-          const overlap = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+          const narrow = window.matchMedia("(max-width: 639px)").matches;
+          let overlap = 0;
+          if (vv) {
+            overlap = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+          }
           modal.style.setProperty("--keyboard-overlap", overlap ? `${overlap}px` : "0px");
+
+          if (!vv || !narrow) {
+            modal.style.removeProperty("--vv-left");
+            modal.style.removeProperty("--vv-width");
+            return;
+          }
+          modal.style.setProperty("--vv-left", `${vv.offsetLeft}px`);
+          modal.style.setProperty("--vv-width", `${vv.width}px`);
         }
 
         function attachExpenseModalViewportListeners() {
           detachExpenseModalViewportListeners();
-          syncExpenseModalKeyboardInset();
+          syncExpenseModalViewport();
           const vv = window.visualViewport;
           if (!vv) return;
-          const onVvChange = () => syncExpenseModalKeyboardInset();
-          vv.addEventListener("resize", onVvChange);
-          vv.addEventListener("scroll", onVvChange);
-          window.addEventListener("resize", onVvChange);
+          const onChange = () => syncExpenseModalViewport();
+          vv.addEventListener("resize", onChange);
+          vv.addEventListener("scroll", onChange);
+          window.addEventListener("resize", onChange);
+          window.addEventListener("orientationchange", onChange);
           _visualViewportCleanup = () => {
-            vv.removeEventListener("resize", onVvChange);
-            vv.removeEventListener("scroll", onVvChange);
-            window.removeEventListener("resize", onVvChange);
+            vv.removeEventListener("resize", onChange);
+            vv.removeEventListener("scroll", onChange);
+            window.removeEventListener("resize", onChange);
+            window.removeEventListener("orientationchange", onChange);
             modal.style.removeProperty("--keyboard-overlap");
+            modal.style.removeProperty("--vv-left");
+            modal.style.removeProperty("--vv-width");
           };
         }
 
@@ -2653,18 +2695,23 @@
           if (_visualViewportCleanup) {
             _visualViewportCleanup();
             _visualViewportCleanup = null;
+          } else {
+            modal.style.removeProperty("--keyboard-overlap");
+            modal.style.removeProperty("--vv-left");
+            modal.style.removeProperty("--vv-width");
           }
-          modal.style.removeProperty("--keyboard-overlap");
         }
 
         /** 锁住背景滚动：聚焦底部输入框时浏览器不再去推整块 layout viewport */
         function lockBodyScrollForModal() {
           _modalSavedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
           document.body.style.top = `${-_modalSavedScrollY}px`;
+          document.documentElement.classList.add("modal-sheet-open");
           document.body.classList.add("modal-sheet-open");
         }
 
         function unlockBodyScrollForModal() {
+          document.documentElement.classList.remove("modal-sheet-open");
           document.body.classList.remove("modal-sheet-open");
           document.body.style.top = "";
           window.scrollTo(0, _modalSavedScrollY);
