@@ -2553,6 +2553,7 @@
             note: row.note,
             member: row.member,
             timestamp: row.created_at,
+            created_at: row.created_at,
           }));
         }
 
@@ -2605,6 +2606,7 @@
                   note: row.note,
                   member: row.member,
                   timestamp: row.created_at,
+                  created_at: row.created_at,
                 };
 
                 addedExpenses.unshift(record);
@@ -2815,7 +2817,7 @@
           article.dataset.recordId = record.id;
           article.dataset.dynamic = "1";
 
-          const recordDate = new Date(record.timestamp);
+          const recordDate = new Date(record.timestamp ?? record.created_at);
           const time = recordDate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
           const isToday = getDateKey(recordDate) === getDateKey(new Date());
           const todayLabel = isToday
@@ -2936,10 +2938,6 @@
           }
 
           return article;
-        }
-
-        function clearDynamicRows() {
-          expenseList.querySelectorAll('article[data-dynamic="1"]').forEach((n) => n.remove());
         }
 
         // ── 骨架屏：无缓存时占位 3 行，模拟真实列表结构 ──────────
@@ -3087,32 +3085,46 @@
         }
 
         /**
-         * 首页「本月」支出列表排序：先按日历日（本地）从新到旧，同一日内再按录入时间从新到旧。
-         * （与 prepend 的旧组合会倒置列表上下顺序；用 appendChild，数组首项即为屏幕最上行。）
+         * 首页 / 历史列表：先按消费「日历日」（本地）从新到旧，同一天内再按录入时刻从新到旧。
+         * timestamp 若缺失则退回 created_at（兼容旧缓存）；比较一律用有限毫秒数，避免出现 NaN 导致 sort 形同虚设。
          */
+        function expenseInstantMs(record) {
+          const raw =
+            record.timestamp != null && record.timestamp !== ""
+              ? record.timestamp
+              : record.created_at != null && record.created_at !== ""
+                ? record.created_at
+                : null;
+          if (raw == null) return 0;
+          if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+          const ms = new Date(raw).getTime();
+          return Number.isFinite(ms) ? ms : 0;
+        }
+
+        function expenseLocalDaySerial(ms) {
+          if (!Number.isFinite(ms) || ms === 0) return 0;
+          const x = new Date(ms);
+          return x.getFullYear() * 1e4 + (x.getMonth() + 1) * 100 + x.getDate();
+        }
+
         function sortRecentExpensesForDisplay(list) {
-          const daySerial = (ts) => {
-            const x = new Date(ts);
-            if (Number.isNaN(x.getTime())) return 0;
-            return x.getFullYear() * 1e4 + (x.getMonth() + 1) * 100 + x.getDate();
-          };
           return [...list].sort((a, b) => {
-            const dn = daySerial(b.timestamp) - daySerial(a.timestamp);
-            if (dn !== 0) return dn;
-            const tb = new Date(b.timestamp).getTime();
-            const ta = new Date(a.timestamp).getTime();
-            if (tb !== ta) return tb - ta;
+            const ma = expenseInstantMs(a);
+            const mb = expenseInstantMs(b);
+            const da = expenseLocalDaySerial(ma);
+            const db = expenseLocalDaySerial(mb);
+            if (db !== da) return db - da;
+            if (mb !== ma) return mb - ma;
             return String(b.id || "").localeCompare(String(a.id || ""));
           });
         }
 
         function renderExpenses() {
-          clearDynamicRows();
           hideExpensesSkeleton();
           const sorted = sortRecentExpensesForDisplay(
             [...addedExpenses].filter(recordMatchesRecentFilter)
           );
-          sorted.forEach((record) => expenseList.appendChild(createExpenseRow(record)));
+          expenseList.replaceChildren(...sorted.map((record) => createExpenseRow(record)));
           syncExpenseEmptyState(sorted.length);
           updateRecentFilteredTotalStrip();
         }
@@ -3848,6 +3860,7 @@
             note,
             member: session.member,
             timestamp: buildTimestampFromDateInput(selectedDate),
+            created_at: buildTimestampFromDateInput(selectedDate),
           };
 
           // Only add to the home-page list if the record is for the current month.
@@ -4015,6 +4028,7 @@
             id: row.id, name: row.name, amount: row.amount,
             category: row.category, note: row.note,
             member: row.member, timestamp: row.created_at,
+            created_at: row.created_at,
           }));
         }
 
