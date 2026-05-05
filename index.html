@@ -3086,13 +3086,33 @@
           updateRecentFilteredTotalStrip();
         }
 
+        /**
+         * 首页「本月」支出列表排序：先按日历日（本地）从新到旧，同一日内再按录入时间从新到旧。
+         * （与 prepend 的旧组合会倒置列表上下顺序；用 appendChild，数组首项即为屏幕最上行。）
+         */
+        function sortRecentExpensesForDisplay(list) {
+          const daySerial = (ts) => {
+            const x = new Date(ts);
+            if (Number.isNaN(x.getTime())) return 0;
+            return x.getFullYear() * 1e4 + (x.getMonth() + 1) * 100 + x.getDate();
+          };
+          return [...list].sort((a, b) => {
+            const dn = daySerial(b.timestamp) - daySerial(a.timestamp);
+            if (dn !== 0) return dn;
+            const tb = new Date(b.timestamp).getTime();
+            const ta = new Date(a.timestamp).getTime();
+            if (tb !== ta) return tb - ta;
+            return String(b.id || "").localeCompare(String(a.id || ""));
+          });
+        }
+
         function renderExpenses() {
           clearDynamicRows();
           hideExpensesSkeleton();
-          const sorted = [...addedExpenses]
-            .filter(recordMatchesRecentFilter)
-            .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-          sorted.forEach((record) => expenseList.prepend(createExpenseRow(record)));
+          const sorted = sortRecentExpensesForDisplay(
+            [...addedExpenses].filter(recordMatchesRecentFilter)
+          );
+          sorted.forEach((record) => expenseList.appendChild(createExpenseRow(record)));
           syncExpenseEmptyState(sorted.length);
           updateRecentFilteredTotalStrip();
         }
@@ -3909,7 +3929,7 @@
             historyExpenseList.classList.remove("hidden");
             historySearchEmpty.classList.add("hidden");
             historySearchEmpty.classList.remove("flex");
-            result.forEach((record) =>
+            sortRecentExpensesForDisplay(result).forEach((record) =>
               historyExpenseList.appendChild(createExpenseRow(record, { enableSwipeDelete: true }))
             );
           }
