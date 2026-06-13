@@ -2376,6 +2376,7 @@
         let deferredInstallPrompt = null;
         let realtimeChannel = null;
         const deletingExpenseIds = new Set();
+        let editingRecordId = null;   // 当前正在编辑的账单 id，null 表示新增模式
         // 左滑交互手感参数（可调）
         // 1) SWIPE_DELETE_MAX_SHIFT: 单条记录左滑时的最大位移（越大越“能拉开”）
         // 2) SWIPE_DELETE_TRIGGER_DISTANCE: 触发删除的阈值（越小越容易触发）
@@ -2571,6 +2572,26 @@
           return true;
         }
 
+        async function updateExpenseInCloud(id, updates) {
+          if (!id) return false;
+          const payload = {};
+          if (updates.name      !== undefined) payload.name       = updates.name;
+          if (updates.amount    !== undefined) payload.amount     = updates.amount;
+          if (updates.category  !== undefined) payload.category   = updates.category;
+          if (updates.note      !== undefined) payload.note       = updates.note || null;
+          if (updates.timestamp !== undefined) payload.created_at = updates.timestamp;
+          const { error } = await sb
+            .from("expenses")
+            .update(payload)
+            .eq("id", id)
+            .eq("family_code", session.familyCode);
+          if (error) {
+            console.error("[update] Supabase 修改失败:", error.message);
+            return false;
+          }
+          return true;
+        }
+
         // ── Realtime 订阅 ────────────────────────────────────────
         function subscribeRealtime() {
           if (realtimeChannel) {
@@ -2722,6 +2743,10 @@
 
         function openModal() {
           if (!modal.classList.contains("hidden")) return;
+          editingRecordId = null;
+          document.getElementById("modalTitle").textContent = "新增消费";
+          document.getElementById("saveExpenseBtn").textContent = "确定添加";
+          if (dateInput) dateInput.max = getDateKey(new Date());
           overlay.classList.remove("hidden");
           modal.classList.remove("hidden");
           setDefaultExpenseDate();
@@ -2730,12 +2755,42 @@
           setTimeout(() => nameInput.focus(), 0);
         }
 
+        function openEditModal(record) {
+          if (!modal.classList.contains("hidden")) return;
+          editingRecordId = record.id;
+          document.getElementById("modalTitle").textContent = "修改账单";
+          document.getElementById("saveExpenseBtn").textContent = "保存修改";
+
+          // 预填类别
+          const catRadio = form.querySelector(`input[name="category"][value="${CSS.escape(record.category)}"]`);
+          if (catRadio) catRadio.checked = true;
+
+          // 预填名称、金额、备注
+          nameInput.value   = record.name   || "";
+          amountInput.value = record.amount  != null ? record.amount : "";
+          noteInput.value   = record.note    || "";
+
+          // 预填日期（允许选择任意过去日期，不设 max 限制）
+          if (dateInput) {
+            dateInput.max   = "";
+            const ts = record.timestamp || record.created_at;
+            dateInput.value = ts ? getDateKey(new Date(ts)) : getDateKey(new Date());
+          }
+
+          overlay.classList.remove("hidden");
+          modal.classList.remove("hidden");
+          lockBodyScrollForModal();
+          attachExpenseModalViewportListeners();
+          setTimeout(() => amountInput.focus(), 0);
+        }
+
         function closeModal() {
           if (modal.classList.contains("hidden")) return;
           detachExpenseModalViewportListeners();
           unlockBodyScrollForModal();
           overlay.classList.add("hidden");
           modal.classList.add("hidden");
+          editingRecordId = null;
           form.reset();
           setDefaultExpenseDate();
         }
@@ -2837,7 +2892,7 @@
                 </svg>
               </div>
             </div>
-            <div class="row-content flex items-center px-4 py-3.5 sm:px-5 bg-white transition-transform duration-150">
+            <div class="row-content flex items-center px-4 py-3.5 sm:px-5 bg-white transition-transform duration-150 cursor-pointer hover:bg-slate-50/80 active:bg-slate-100/80">
               <span class="mr-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl text-xl" style="background:${config.chartColor}18">${config.emoji}</span>
               <div class="flex-1 min-w-0">
                 <p class="truncate text-[15px] font-medium text-slate-900 name-el"></p>
@@ -2886,6 +2941,15 @@
             await handleDeleteRecord(record.id, { sourceButton: delBtn });
           });
 
+          // 点击行内容区（非删除按钮）→ 打开编辑弹窗
+          // swipeOccurred 由下方触摸事件设置，防止左滑结束后误触发 click
+          let swipeOccurred = false;
+          rowContentEl.addEventListener("click", (e) => {
+            if (e.target.closest(".delete-record-btn")) return;
+            if (swipeOccurred) { swipeOccurred = false; return; }
+            openEditModal(record);
+          });
+
           if (enableSwipeDelete) {
             let startX = 0;
             let startY = 0;
@@ -2911,6 +2975,7 @@
               const dy = t.clientY - startY;
               if (Math.abs(dx) <= Math.abs(dy)) return;
               if (dx < 0) {
+                swipeOccurred = true;
                 const shift = Math.max(dx, -SWIPE_DELETE_MAX_SHIFT);
                 rowContentEl.style.transform = `translateX(${shift}px)`;
                 const progress = Math.min(1, Math.abs(shift) / SWIPE_DELETE_TRIGGER_DISTANCE);
@@ -3843,8 +3908,7 @@
 
           if (!name || !Number.isFinite(amount) || amount <= 0) return;
 
-          // Large-amount guard: prompt for confirmation when the entered value
-          // exceeds ¥999, catching accidental integer entries like "2717" → "27.17"
+          // Large-amount guard
           if (amount > 999) {
             const ok = window.confirm(
               `⚠️ 金额较大：¥${amount.toLocaleString("zh-CN", { minimumFractionDigits: 2 })}\n\n确认金额无误吗？\n（如有误，请关闭后修改）`
@@ -3852,6 +3916,50 @@
             if (!ok) return;
           }
 
+          // ── 编辑模式 ──────────────────────────────────────────────
+          if (editingRecordId) {
+            const id = editingRecordId;
+            const newTimestamp = buildTimestampFromDateInput(selectedDate);
+            const updates = { name, amount, category, note, timestamp: newTimestamp };
+
+            // 乐观更新本地缓存
+            const snapshot = [...addedExpenses];
+            const idx = addedExpenses.findIndex((e) => e.id === id);
+            if (idx !== -1) {
+              addedExpenses[idx] = {
+                ...addedExpenses[idx],
+                name, amount, category, note,
+                timestamp: newTimestamp,
+                created_at: newTimestamp,
+              };
+              saveExpenseCache(session.familyCode, addedExpenses);
+              renderExpenses();
+              recalculateTotal();
+            }
+            closeModal();
+
+            const ok = await updateExpenseInCloud(id, updates);
+            if (!ok) {
+              // 回滚
+              addedExpenses = snapshot;
+              saveExpenseCache(session.familyCode, snapshot);
+              renderExpenses();
+              recalculateTotal();
+              showToast("修改失败，已恢复原记录。请检查网络后重试");
+            } else {
+              showToast("账单已修改 ✓");
+              // 同步云端最新数据，确保历史缓存也更新
+              const fresh = await fetchFamilyExpenses();
+              addedExpenses = fresh;
+              saveExpenseCache(session.familyCode, fresh);
+              clearHistoryCache(session.familyCode);
+              renderExpenses();
+              recalculateTotal();
+            }
+            return;
+          }
+
+          // ── 新增模式 ──────────────────────────────────────────────
           const record = {
             id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
             name,
@@ -3864,8 +3972,6 @@
           };
 
           // Only add to the home-page list if the record is for the current month.
-          // Back-dated entries (补账 to a previous month) are saved to cloud and
-          // will appear in the history page, but must not pollute the current-month view.
           const _rDate = new Date(record.timestamp);
           const _now2  = new Date();
           const isCurrentMonth =
@@ -3878,7 +3984,6 @@
             renderExpenses();
             recalculateTotal();
           } else {
-            // Past-month entry: clear history cache for that month so it refreshes on next visit
             clearHistoryCache(session.familyCode);
             showToast(`补账成功，已记录到 ${_rDate.getMonth() + 1}月${_rDate.getDate()}日 ✓`);
           }
